@@ -31,7 +31,12 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    if (message.mentions.has(client.user) && !message.mentions.everyone) {
+    // Check if the message is a direct private DM OR a public server mention
+    const isDM = message.channel.type === 1; // 1 represents a DM channel in discord.js v14
+    const isMentioned = message.mentions.has(client.user) && !message.mentions.everyone;
+
+    if (isDM || isMentioned) {
+        // Clean up the prompt by removing the bot mention tag if it exists
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!prompt) {
@@ -54,16 +59,18 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
-            try {
-                // 1. Send the race setup directly to the user's private DMs
-                await message.author.send(engineerResponse);
-                
-                // 2. Leave a public note in the channel so they know it sent successfully
-                await message.reply("🏁 *Check your DMs, driver! I've sent the setup sheets over.*");
-            } catch (dmError) {
-                // If the user has blocked DMs from bot accounts, fall back to the public channel
-                console.error("Could not send DM to user:", dmError);
-                await message.reply("⚠️ *I tried to DM you the setup, but your privacy settings blocked me! Here it is instead:*\n\n" + engineerResponse);
+            // If the user messaged us in a public server, send it to DM and leave a note
+            if (!isDM) {
+                try {
+                    await message.author.send(engineerResponse);
+                    await message.reply("🏁 *Check your DMs, driver! I've sent the setup sheets over.*");
+                } catch (dmError) {
+                    console.error("Could not send DM to user:", dmError);
+                    await message.reply("⚠️ *I tried to DM you the setup, but your privacy settings blocked me! Here it is instead:*\n\n" + engineerResponse);
+                }
+            } else {
+                // If they are already chatting in DMs, just reply directly in the DM!
+                await message.reply(engineerResponse);
             }
 
         } catch (error) {
@@ -72,5 +79,3 @@ client.on('messageCreate', async (message) => {
         }
     }
 });
-
-client.login(DISCORD_TOKEN);
