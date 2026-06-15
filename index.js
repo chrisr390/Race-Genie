@@ -41,9 +41,9 @@ client.on('messageCreate', async (message) => {
         await message.channel.sendTyping();
 
         try {
-            // Using a slightly different structure to force Render to recompile the object
+            // Updated to the current production model string 'gemini-2.5-flash'
             const response = await ai.models.generateContent({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: [prompt],
                 config: {
                     systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello. Do not compliment the choices. Start immediately with direct tuning advice using bullet points. Keep explanations to one sentence per point.",
