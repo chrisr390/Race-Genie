@@ -1,15 +1,18 @@
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
-// A simple web server to satisfy Render's web service health checks
 const http = require('http');
+
+// Simple web server for Render health checks
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Race Genie is firing on all cylinders!\n');
+    res.end('Race Genie running!\n');
 }).listen(process.env.PORT || 3000);
+
 const { GoogleGenAI } = require('@google/genai');
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// Initialize the client
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 const client = new Client({
@@ -17,17 +20,11 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-    ],
-    // Adds a 60-second window for the handshake to clear network bottlenecks
-    rest: {
-        timeout: 60000,
-        retries: 3
-    }
+    ]
 });
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    client.user.setActivity('with Gemini 2.0', { type: ActivityType.Playing });
 });
 
 client.on('messageCreate', async (message) => {
@@ -37,34 +34,31 @@ client.on('messageCreate', async (message) => {
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!prompt) {
-            message.reply("Race Genie is active! Drop a question and I'll jump on it.");
+            message.reply("Race Genie is online. What's the setup issue?");
             return;
         }
 
         await message.channel.sendTyping();
 
         try {
+            // Using a slightly different structure to force Render to recompile the object
             const response = await ai.models.generateContent({
-                model: 'gemini-1.5-flash', // Fixed model string for the new SDK
-                contents: prompt,
+                model: 'gemini-1.5-flash',
+                contents: [prompt],
                 config: {
-                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not compliment the car/track choice, and do not use introductory filler text. Start your response immediately with the direct tuning advice. Use bullet points for specific setup values and keep explanations to a single sentence per point.",
-                    maxOutputTokens: 300
+                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello. Do not compliment the choices. Start immediately with direct tuning advice using bullet points. Keep explanations to one sentence per point.",
+                    maxOutputTokens: 250
                 }
             });
 
-            if (response.text) {
-                if (response.text.length > 2000) {
-                    message.reply(response.text.substring(0, 1999));
-                } else {
-                    message.reply(response.text);
-                }
+            if (response && response.text) {
+                message.reply(response.text.trim());
             } else {
-                message.reply("I processed that, but couldn't map a text response out of it.");
+                message.reply("Engine's running, but couldn't parse a response.");
             }
         } catch (error) {
-            console.error("Gemini Error:", error);
-            message.reply("Sorry mate, hit a bit of an engine snag trying to process that prompt.");
+            console.error("Race Genie Error Log:", error.message || error);
+            message.reply("Hit a bit of an engine snag trying to process that setup.");
         }
     }
 });
