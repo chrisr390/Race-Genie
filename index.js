@@ -57,11 +57,9 @@ client.on('messageCreate', async (message) => {
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!prompt) {
-            // Ephemeral requires an interaction reply, standard messages can use DMs or normal replies
             if (isDM) {
                 message.reply("Race Genie is online. What's the car or track setup issue?");
             } else {
-                // For standard messages, we can delete the prompt to keep it hidden if empty
                 try { await message.delete(); } catch(e){}
                 const setupNotice = await message.channel.send("🏁 *Race Genie is online. Drop your copied setup sheet to get dialed in.*");
                 setTimeout(() => setupNotice.delete().catch(() => {}), 5000);
@@ -69,7 +67,7 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
-        // To make the entire enquiry invisible, we delete the user's public copy-paste template immediately
+        // Auto-delete the user's public prompt immediately to keep channel hidden
         if (!isDM) {
             try {
                 await message.delete();
@@ -81,15 +79,13 @@ client.on('messageCreate', async (message) => {
         const userId = message.author.id;
         const now = Date.now();
 
-        // Manage 1-hour session tracking
         if (!conversations.has(userId) || (now - conversations.get(userId).lastActive > TIMEOUT_MS)) {
             conversations.set(userId, { history: [], lastActive: now });
         }
 
         const session = conversations.get(userId);
-        session.lastActive = now; // Reset the 1-hour countdown clock
+        session.lastActive = now;
 
-        // Build the conversation history payload
         const apiContents = [];
         for (const msg of session.history) {
             apiContents.push({
@@ -98,14 +94,18 @@ client.on('messageCreate', async (message) => {
             });
         }
         
-        // Add the current user prompt
         apiContents.push({
             role: 'user',
             parts: [{ text: prompt }]
         });
 
-        // Built-in instruction framework with strict GT7 rules
+        // Updated system instructions with dedicated dynamic weather rules
         const systemInstruction = `You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). Pay close attention to the track mentioned in the prompt and do not mix up track characteristics. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. 
+
+DYNAMIC WEATHER & MIXED CONDITIONS RULES:
+- If the weather is described as changing or mixed (e.g., "Wet to Dry", "Dry to Wet", "Transitioning", "Intermittent Rain"), you must provide a split tactical response.
+- Prioritize the pre-race garage setup (suspension, LSD) to handle the slickest/wettest phase safely so the car doesn't spin.
+- Explicitly instruct the driver on how to use mid-race MFD adjustments (Traction Control and Brake Balance) to adapt on the fly as the racing line dries out or gets wetter.
 
 TRACK GUIDE DIRECTIVE:
 - When a specific track is mentioned, you must include a brief, separate section at the bottom of your response titled "🏎️ TRACK ENGINEERING NOTES". 
@@ -149,7 +149,6 @@ You must provide specific numerical values, slider clicks, or concrete mechanica
 
             const engineerResponse = response.text;
 
-            // Commit the exchange to memory
             session.history.push({ role: 'user', text: prompt });
             session.history.push({ role: 'model', text: engineerResponse });
 
@@ -157,18 +156,13 @@ You must provide specific numerical values, slider clicks, or concrete mechanica
                 session.history.splice(0, session.history.length - MAX_HISTORY);
             }
 
-            // Route response back to driver via silent DM bypass or direct DM
             if (!isDM) {
                 try {
-                    // Send the setup sheets directly to the user's DMs to ensure it's permanently saved for them
                     await message.author.send(`🏁 **YOUR PRIVATE SETUP SHEET:**\n\n${engineerResponse}`);
-                    
-                    // Leave a tiny, temporary public trace that auto-deletes so they know it worked
                     const confirmation = await message.channel.send(`🏁 *Telemetry received. Check your DMs for the setup sheet!*`);
                     setTimeout(() => confirmation.delete().catch(() => {}), 4000);
                 } catch (dmError) {
                     console.error("Could not send DM to user:", dmError);
-                    // Fallback if DMs are locked: print it publicly since we deleted their prompt
                     await message.channel.send(`⚠️ <@${userId}> *I couldn't DM you! Open your privacy settings. Here is your setup:*\n\n${engineerResponse}`);
                 }
             } else {
