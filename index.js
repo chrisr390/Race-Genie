@@ -1,4 +1,10 @@
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+// A simple web server to satisfy Render's web service health checks
+const http = require('http');
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Race Genie is firing on all cylinders!\n');
+}).listen(process.env.PORT || 3000);
 const { GoogleGenAI } = require('@google/genai');
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
