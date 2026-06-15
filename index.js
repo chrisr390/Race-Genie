@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, ActivityType, ChannelType, Partials } = require('discord.js');
 const http = require('http');
-const axios = require('axios'); // Required to download images from Discord
+const axios = require('axios');
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -33,7 +33,7 @@ const conversations = new Map();
 const MAX_HISTORY = 6; 
 const TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes memory limit
 
-// Helper function to turn a Discord attachment URL into Gemini's image data format
+// Helper function to turn a Discord attachment URL into Gemini's expected image object structure
 async function urlToGenerativePart(url) {
     try {
         const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -42,7 +42,7 @@ async function urlToGenerativePart(url) {
             inlineData: {
                 data: Buffer.from(response.data).toString("base64"),
                 mimeType: contentType
-            },
+            }
         };
     } catch (error) {
         console.error("Error downloading attachment:", error);
@@ -73,11 +73,8 @@ client.on('messageCreate', async (message) => {
 
     if (isDM || isMentioned) {
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
-
-        // Check if there is an image attached
         const hasAttachment = message.attachments.size > 0;
 
-        // If no text and no image, reject
         if (!prompt && !hasAttachment) {
             message.reply("Race Genie is online. Drop a tuning screenshot or ask a setup question!");
             return;
@@ -96,7 +93,7 @@ client.on('messageCreate', async (message) => {
         const session = conversations.get(userId);
         session.lastActive = now;
 
-        // Build the historical API contents payload
+        // Build the contents array precisely how the SDK expects it
         const apiContents = [];
         for (const msg of session.history) {
             apiContents.push({
@@ -105,29 +102,31 @@ client.on('messageCreate', async (message) => {
             });
         }
         
-        // Prepare current payload block
         const currentParts = [];
         
-        // Process attachment if present
+        // Default to the high-quota flash-lite model for text chats
+        let targetModel = 'gemini-2.5-flash-lite';
+        
+        // If an image is sent, pull down the inline data block and route to full Flash
         if (hasAttachment) {
             const attachment = message.attachments.first();
-            // Verify it is an image file type
             if (attachment.contentType && attachment.contentType.startsWith('image/')) {
-                const imageData = await urlToGenerativePart(attachment.url);
-                if (imageData) {
-                    currentParts.push(imageData);
+                const imagePart = await urlToGenerativePart(attachment.url);
+                if (imagePart) {
+                    currentParts.push(imagePart);
+                    targetModel = 'gemini-2.5-flash'; // Route image requests to Flash
                 }
             }
         }
         
-        // Add the text prompt if they sent text alongside/without the image
+        // Append user prompt text to current parts array
         if (prompt) {
             currentParts.push({ text: prompt });
         } else if (hasAttachment) {
-            // Fallback prompt if they only drop a photo with zero text
-            currentParts.push({ text: "Analyze this car settings sheet and give me track tuning recommendations." });
+            currentParts.push({ text: "Analyze this car settings sheet and give me track tuning recommendations based on the numbers visible." });
         }
 
+        // Add the structured user turn to the API history stack
         apiContents.push({
             role: 'user',
             parts: currentParts
@@ -135,17 +134,17 @@ client.on('messageCreate', async (message) => {
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: targetModel, // Dynamically chosen model based on content type
                 contents: apiContents,
                 config: {
-                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. You have advanced computer vision capabilities to accurately read text, sliders, bars, and values directly from uploaded racing UI screenshots. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
+                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. You have advanced capabilities to read racing metrics and values. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
                     maxOutputTokens: 1850
                 }
             });
 
             const engineerResponse = response.text;
 
-            // Commit plain text representations to the history timeline
+            // Save text representations to session history cache
             const historyText = prompt || "[Uploaded Image Analysis]";
             session.history.push({ role: 'user', text: historyText });
             session.history.push({ role: 'model', text: engineerResponse });
@@ -175,4 +174,3 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(DISCORD_TOKEN);
-
