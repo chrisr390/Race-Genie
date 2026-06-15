@@ -72,10 +72,12 @@ client.on('messageCreate', async (message) => {
         }
 
         const session = conversations.get(userId);
-        session.lastActive = now; // Reset the 1-hour countdown clock on new message
+        session.lastActive = now; // Reset the 1-hour countdown clock
 
-        // Format the history context for the Gemini API structure
+        // Build the contents array exactly how the @google/genai SDK expects it
         const apiContents = [];
+        
+        // Add historical turns if they exist
         for (const msg of session.history) {
             apiContents.push({
                 role: msg.role,
@@ -83,7 +85,7 @@ client.on('messageCreate', async (message) => {
             });
         }
         
-        // Append the incoming driver prompt
+        // Add the fresh incoming user prompt
         apiContents.push({
             role: 'user',
             parts: [{ text: prompt }]
@@ -92,7 +94,7 @@ client.on('messageCreate', async (message) => {
         try {
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: apiContents,
+                contents: apiContents, // Send the full conversation structure
                 config: {
                     systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
                     maxOutputTokens: 1850
@@ -101,15 +103,16 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
-            // Commit the exchange to memory
+            // Save this interaction to history for next time
             session.history.push({ role: 'user', text: prompt });
-            session.history.push({ role: 'model', text: engineerResponse });
+            session.history.push({ role: 'model', text: engineerResponse }); // SDK uses 'model' role for responses
 
+            // Prevent history array from overflowing the limit
             if (session.history.length > MAX_HISTORY) {
                 session.history.splice(0, session.history.length - MAX_HISTORY);
             }
 
-            // Route response
+            // Route response based on channel origin
             if (!isDM) {
                 try {
                     await message.author.send(engineerResponse);
@@ -123,7 +126,7 @@ client.on('messageCreate', async (message) => {
             }
 
         } catch (error) {
-            console.error("AI Error:", error);
+            console.error("AI Error Details:", error);
             await message.reply("Engineering error. The telemetry link dropped.");
         }
     }
