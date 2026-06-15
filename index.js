@@ -53,6 +53,19 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
+           try {
+            // Updated to the current production model string 'gemini-2.5-flash'
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: [prompt],
+                config: {
+                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
+                    maxOutputTokens: 1850
+                }
+            });
+
+            const engineerResponse = response.text;
+
             try {
                 // 1. Send the race setup directly to the user's private DMs
                 await message.author.send(engineerResponse);
@@ -69,5 +82,6 @@ client.on('messageCreate', async (message) => {
             console.error("AI Error:", error);
             await message.reply("Engineering error. The telemetry link dropped.");
         }
-
+    });
+};
 client.login(DISCORD_TOKEN);
