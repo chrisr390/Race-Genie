@@ -47,20 +47,27 @@ client.on('messageCreate', async (message) => {
                 contents: [prompt],
                 config: {
                     systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
-                    maxOutputTokens: 1850
+                   maxOutputTokens: 1850
                 }
             });
 
-            if (response && response.text) {
-                message.reply(response.text.trim());
-            } else {
-                message.reply("Engine's running, but couldn't parse a response.");
+            const engineerResponse = response.text;
+
+            try {
+                // 1. Send the race setup directly to the user's private DMs
+                await message.author.send(engineerResponse);
+                
+                // 2. Leave a public note in the channel so they know it sent successfully
+                await message.reply("🏁 *Check your DMs, driver! I've sent the setup sheets over.*");
+            } catch (dmError) {
+                // If the user has blocked DMs from bot accounts, fall back to the public channel
+                console.error("Could not send DM to user:", dmError);
+                await message.reply("⚠️ *I tried to DM you the setup, but your privacy settings blocked me! Here it is instead:*\n\n" + engineerResponse);
             }
+
         } catch (error) {
-            console.error("Race Genie Error Log:", error.message || error);
-            message.reply("Hit a bit of an engine snag trying to process that setup.");
+            console.error("AI Error:", error);
+            await message.reply("Engineering error. The telemetry link dropped.");
         }
-    }
-});
 
 client.login(DISCORD_TOKEN);
