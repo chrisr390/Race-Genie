@@ -26,14 +26,13 @@ const client = new Client({
 });
 
 // Server-side conversation memory map
-// Structure: userId -> { history: [...], lastActive: timestamp }
 const conversations = new Map();
 
 // Configuration constants
 const MAX_HISTORY = 6; // Tracks up to 3 user prompts and 3 bot responses
-const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+const TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes (1 hour) in milliseconds
 
-// Periodic memory cleanup routine to keep Render performance lean
+// Periodic memory cleanup routine running every 5 minutes
 setInterval(() => {
     const now = Date.now();
     for (const [userId, session] of conversations.entries()) {
@@ -42,7 +41,7 @@ setInterval(() => {
             console.log(`Cleaned up idle session memory for user: ${userId}`);
         }
     }
-}, 5 * 60 * 1000); // Runs every 5 minutes
+}, 5 * 60 * 1000);
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -73,7 +72,7 @@ client.on('messageCreate', async (message) => {
         }
 
         const session = conversations.get(userId);
-        session.lastActive = now; // Update the activity clock
+        session.lastActive = now; // Reset the 1-hour countdown clock on new message
 
         // Format the history context for the Gemini API structure
         const apiContents = [];
@@ -84,7 +83,7 @@ client.on('messageCreate', async (message) => {
             });
         }
         
-        // Append the incoming driver prompt to the payload stack
+        // Append the incoming driver prompt
         apiContents.push({
             role: 'user',
             parts: [{ text: prompt }]
@@ -102,16 +101,15 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
-            // Commit the current exchange to memory history
+            // Commit the exchange to memory
             session.history.push({ role: 'user', text: prompt });
             session.history.push({ role: 'model', text: engineerResponse });
 
-            // Enforce rotation limits so history context doesn't spill past limits
             if (session.history.length > MAX_HISTORY) {
                 session.history.splice(0, session.history.length - MAX_HISTORY);
             }
 
-            // Route response based on channel origin
+            // Route response
             if (!isDM) {
                 try {
                     await message.author.send(engineerResponse);
