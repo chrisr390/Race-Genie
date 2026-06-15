@@ -1,7 +1,7 @@
 {
-  "name": "gemini-discord-bot",
+  "name": "race-genie",
   "version": "1.0.0",
-  "description": "Discord bot powered by Gemini 2.0 Flash",
+  "description": "Trackside AI race engineer for FCSC",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,3 +11,4 @@
     "discord.js": "^14.14.1",
     "axios": "^1.6.0"
   }
+}
