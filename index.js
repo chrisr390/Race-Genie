@@ -47,7 +47,7 @@ client.on('messageCreate', async (message) => {
                 contents: [prompt],
                 config: {
                     systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello. Do not compliment the choices. Start immediately with direct tuning advice using bullet points. Keep explanations to one sentence per point.",
-                    maxOutputTokens: 250
+                    maxOutputTokens: 600
                 }
             });
 
