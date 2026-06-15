@@ -48,7 +48,7 @@ client.on('messageCreate', async (message) => {
                 model: 'models/gemini-1.5-flash',
                 contents: prompt,
                 config: {
-                    systemInstruction: "You are Race Genie, a concise trackside race engineer. Give direct tuning advice. Keep responses brief, practical, and under 3 paragraphs. Use bullet points for setup adjustments."
+                    systemInstruction: "You are Race Genie, a trackside race engineer. Give direct tuning advice. You MUST keep the entire response under 800 characters total. Give only the setup adjustments as short bullet points with no explanations."
                 }
             });
 
