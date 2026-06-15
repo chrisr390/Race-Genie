@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ActivityType, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType, ChannelType, Partials } = require('discord.js');
 const http = require('http');
 
 // Simple web server for Render health checks
@@ -21,8 +21,28 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages
-    ]
+    ],
+    partials: [Partials.Channel, Partials.Message]
 });
+
+// Server-side conversation memory map
+// Structure: userId -> { history: [...], lastActive: timestamp }
+const conversations = new Map();
+
+// Configuration constants
+const MAX_HISTORY = 6; // Tracks up to 3 user prompts and 3 bot responses
+const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+
+// Periodic memory cleanup routine to keep Render performance lean
+setInterval(() => {
+    const now = Date.now();
+    for (const [userId, session] of conversations.entries()) {
+        if (now - session.lastActive > TIMEOUT_MS) {
+            conversations.delete(userId);
+            console.log(`Cleaned up idle session memory for user: ${userId}`);
+        }
+    }
+}, 5 * 60 * 1000); // Runs every 5 minutes
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -31,12 +51,10 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    // Bulletproof check for direct message channels using ChannelType
     const isDM = message.channel.type === ChannelType.DM;
     const isMentioned = message.mentions.has(client.user) && !message.mentions.everyone;
 
     if (isDM || isMentioned) {
-        // Clean up the prompt by removing the bot mention tag if it exists in a server channel
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!prompt) {
@@ -46,11 +64,36 @@ client.on('messageCreate', async (message) => {
 
         await message.channel.sendTyping();
 
+        const userId = message.author.id;
+        const now = Date.now();
+
+        // Retrieve existing session or initialize a clean one
+        if (!conversations.has(userId) || (now - conversations.get(userId).lastActive > TIMEOUT_MS)) {
+            conversations.set(userId, { history: [], lastActive: now });
+        }
+
+        const session = conversations.get(userId);
+        session.lastActive = now; // Update the activity clock
+
+        // Format the history context for the Gemini API structure
+        const apiContents = [];
+        for (const msg of session.history) {
+            apiContents.push({
+                role: msg.role,
+                parts: [{ text: msg.text }]
+            });
+        }
+        
+        // Append the incoming driver prompt to the payload stack
+        apiContents.push({
+            role: 'user',
+            parts: [{ text: prompt }]
+        });
+
         try {
-            // Call Gemini API once
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: [prompt],
+                contents: apiContents,
                 config: {
                     systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
                     maxOutputTokens: 1850
@@ -59,7 +102,16 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
-            // Route response based on where the driver asked from
+            // Commit the current exchange to memory history
+            session.history.push({ role: 'user', text: prompt });
+            session.history.push({ role: 'model', text: engineerResponse });
+
+            // Enforce rotation limits so history context doesn't spill past limits
+            if (session.history.length > MAX_HISTORY) {
+                session.history.splice(0, session.history.length - MAX_HISTORY);
+            }
+
+            // Route response based on channel origin
             if (!isDM) {
                 try {
                     await message.author.send(engineerResponse);
@@ -69,7 +121,6 @@ client.on('messageCreate', async (message) => {
                     await message.reply("⚠️ *I tried to DM you the setup, but your privacy settings blocked me! Here it is instead:*\n\n" + engineerResponse);
                 }
             } else {
-                // Replying inside the DM chat directly
                 await message.reply(engineerResponse);
             }
 
