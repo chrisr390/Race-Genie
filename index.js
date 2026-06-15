@@ -57,11 +57,26 @@ client.on('messageCreate', async (message) => {
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!prompt) {
-            message.reply("Race Genie is online. What's the car or track setup issue?");
+            // Ephemeral requires an interaction reply, standard messages can use DMs or normal replies
+            if (isDM) {
+                message.reply("Race Genie is online. What's the car or track setup issue?");
+            } else {
+                // For standard messages, we can delete the prompt to keep it hidden if empty
+                try { await message.delete(); } catch(e){}
+                const setupNotice = await message.channel.send("🏁 *Race Genie is online. Drop your copied setup sheet to get dialed in.*");
+                setTimeout(() => setupNotice.delete().catch(() => {}), 5000);
+            }
             return;
         }
 
-        await message.channel.sendTyping();
+        // To make the entire enquiry invisible, we delete the user's public copy-paste template immediately
+        if (!isDM) {
+            try {
+                await message.delete();
+            } catch (err) {
+                console.error("Could not delete user prompt message. Check 'Manage Messages' permission:", err);
+            }
+        }
 
         const userId = message.author.id;
         const now = Date.now();
@@ -89,7 +104,7 @@ client.on('messageCreate', async (message) => {
             parts: [{ text: prompt }]
         });
 
-        // Built-in instruction framework with strict GT7 rule clamps and track guide rules
+        // Built-in instruction framework with strict GT7 rules
         const systemInstruction = `You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). Pay close attention to the track mentioned in the prompt and do not mix up track characteristics. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. 
 
 TRACK GUIDE DIRECTIVE:
@@ -142,14 +157,19 @@ You must provide specific numerical values, slider clicks, or concrete mechanica
                 session.history.splice(0, session.history.length - MAX_HISTORY);
             }
 
-            // Route response back to driver
+            // Route response back to driver via silent DM bypass or direct DM
             if (!isDM) {
                 try {
-                    await message.author.send(engineerResponse);
-                    await message.reply("🏁 *Check your DMs, driver! I've sent the setup sheets over.*");
+                    // Send the setup sheets directly to the user's DMs to ensure it's permanently saved for them
+                    await message.author.send(`🏁 **YOUR PRIVATE SETUP SHEET:**\n\n${engineerResponse}`);
+                    
+                    // Leave a tiny, temporary public trace that auto-deletes so they know it worked
+                    const confirmation = await message.channel.send(`🏁 *Telemetry received. Check your DMs for the setup sheet!*`);
+                    setTimeout(() => confirmation.delete().catch(() => {}), 4000);
                 } catch (dmError) {
                     console.error("Could not send DM to user:", dmError);
-                    await message.reply("⚠️ *I tried to DM you the setup, but your privacy settings blocked me! Here it is instead:*\n\n" + engineerResponse);
+                    // Fallback if DMs are locked: print it publicly since we deleted their prompt
+                    await message.channel.send(`⚠️ <@${userId}> *I couldn't DM you! Open your privacy settings. Here is your setup:*\n\n${engineerResponse}`);
                 }
             } else {
                 await message.reply(engineerResponse);
@@ -157,7 +177,12 @@ You must provide specific numerical values, slider clicks, or concrete mechanica
 
         } catch (error) {
             console.error("AI Error Details:", error);
-            await message.reply("Engineering error. The telemetry link dropped.");
+            if (!isDM) {
+                const errNotice = await message.channel.send("⚠️ *Engineering error. Telemetry drop.*");
+                setTimeout(() => errNotice.delete().catch(() => {}), 4000);
+            } else {
+                await message.reply("Engineering error. The telemetry link dropped.");
+            }
         }
     }
 });
