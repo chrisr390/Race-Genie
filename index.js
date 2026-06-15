@@ -45,9 +45,9 @@ client.on('messageCreate', async (message) => {
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-1.5-flash',
-                contents: prompt,
-            });
+    model: 'models/gemini-1.5-flash', // Added the 'models/' prefix
+    contents: prompt,
+});
 
             if (response.text) {
                 if (response.text.length > 2000) {
