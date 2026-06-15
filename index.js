@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, ActivityType, ChannelType, Partials } = require('discord.js');
 const http = require('http');
 const axios = require('axios');
+const fs = require('fs'); // Added to read local files
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -32,6 +33,16 @@ const conversations = new Map();
 // Configuration constants
 const MAX_HISTORY = 6; 
 const TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes memory limit
+
+// Load GT7 Tuning JSON data safely on startup
+let gt7Database = "";
+try {
+    const rawData = fs.readFileSync('./tuningData.json', 'utf8');
+    gt7Database = JSON.stringify(JSON.parse(rawData));
+    console.log("GT7 tuning database loaded successfully!");
+} catch (err) {
+    console.error("Failed to load tuningData.json:", err);
+}
 
 // Helper function to turn a Discord attachment URL into Gemini's expected image object structure
 async function urlToGenerativePart(url) {
@@ -114,7 +125,7 @@ client.on('messageCreate', async (message) => {
                 const imagePart = await urlToGenerativePart(attachment.url);
                 if (imagePart) {
                     currentParts.push(imagePart);
-                    targetModel = 'gemini-2.5-flash'; // Route image requests to Flash
+                    targetModel = 'gemini-2.5-flash'; 
                 }
             }
         }
@@ -132,12 +143,15 @@ client.on('messageCreate', async (message) => {
             parts: currentParts
         });
 
+        // Construct the strict system instruction injected with our local database data
+        const dynamicSystemInstruction = `You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). You have advanced capabilities to read racing metrics and values. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must prioritize using the exact mechanical rules, slider directions, and track data provided in this verified GT7 database: ${gt7Database}. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.`;
+
         try {
             const response = await ai.models.generateContent({
-                model: targetModel, // Dynamically chosen model based on content type
+                model: targetModel,
                 contents: apiContents,
                 config: {
-                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. You have advanced capabilities to read racing metrics and values. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
+                    systemInstruction: dynamicSystemInstruction,
                     maxOutputTokens: 1850
                 }
             });
