@@ -45,9 +45,12 @@ client.on('messageCreate', async (message) => {
 
         try {
             const response = await ai.models.generateContent({
-    model: 'models/gemini-1.5-flash', // Added the 'models/' prefix
-    contents: prompt,
-});
+                model: 'models/gemini-1.5-flash',
+                contents: prompt,
+                config: {
+                    systemInstruction: "You are Race Genie, a concise trackside race engineer. Give direct tuning advice. Keep responses brief, practical, and under 3 paragraphs. Use bullet points for setup adjustments."
+                }
+            });
 
             if (response.text) {
                 if (response.text.length > 2000) {
