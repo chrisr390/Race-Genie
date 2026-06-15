@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType, ChannelType } = require('discord.js');
 const http = require('http');
 
 // Simple web server for Render health checks
@@ -20,7 +20,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages // <-- Add this line right here
+        GatewayIntentBits.DirectMessages
     ]
 });
 
@@ -31,12 +31,12 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    // Check if the message is a direct private DM OR a public server mention
-    const isDM = message.channel.type === 1; // 1 represents a DM channel in discord.js v14
+    // Bulletproof check for direct message channels using ChannelType
+    const isDM = message.channel.type === ChannelType.DM;
     const isMentioned = message.mentions.has(client.user) && !message.mentions.everyone;
 
     if (isDM || isMentioned) {
-        // Clean up the prompt by removing the bot mention tag if it exists
+        // Clean up the prompt by removing the bot mention tag if it exists in a server channel
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
 
         if (!prompt) {
@@ -59,7 +59,7 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
-            // If the user messaged us in a public server, send it to DM and leave a note
+            // Route response based on where the driver asked from
             if (!isDM) {
                 try {
                     await message.author.send(engineerResponse);
@@ -69,7 +69,7 @@ client.on('messageCreate', async (message) => {
                     await message.reply("⚠️ *I tried to DM you the setup, but your privacy settings blocked me! Here it is instead:*\n\n" + engineerResponse);
                 }
             } else {
-                // If they are already chatting in DMs, just reply directly in the DM!
+                // Replying inside the DM chat directly
                 await message.reply(engineerResponse);
             }
 
@@ -79,3 +79,5 @@ client.on('messageCreate', async (message) => {
         }
     }
 });
+
+client.login(DISCORD_TOKEN);
