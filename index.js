@@ -45,7 +45,7 @@ client.on('messageCreate', async (message) => {
 
         try {
             const response = await ai.models.generateContent({
-                model: 'models/gemini-1.5-flash',
+                model: 'gemini-1.5-flash', // Fixed model string for the new SDK
                 contents: prompt,
                 config: {
                     systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not compliment the car/track choice, and do not use introductory filler text. Start your response immediately with the direct tuning advice. Use bullet points for specific setup values and keep explanations to a single sentence per point.",
