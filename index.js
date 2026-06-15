@@ -46,7 +46,7 @@ client.on('messageCreate', async (message) => {
                 model: 'gemini-2.5-flash',
                 contents: [prompt],
                 config: {
-                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello. Do not compliment the choices. Start immediately with direct tuning advice using bullet points. Keep explanations to one sentence per point.",
+                    systemInstruction: "You are Race Genie, a no-nonsense trackside race engineer. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.",
                     maxOutputTokens: 1850
                 }
             });
