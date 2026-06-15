@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, ActivityType, ChannelType, Partials } = require('discord.js');
 const http = require('http');
-const axios = require('axios');
-const fs = require('fs'); // Added to read local files
+const fs = require('fs');
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -32,33 +31,20 @@ const conversations = new Map();
 
 // Configuration constants
 const MAX_HISTORY = 6; 
-const TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes memory limit
+const TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes (1 hour) memory limit
 
 // Load GT7 Tuning JSON data safely on startup
 let gt7Database = "";
 try {
-    const rawData = fs.readFileSync('./tuningData.json', 'utf8');
-    gt7Database = JSON.stringify(JSON.parse(rawData));
-    console.log("GT7 tuning database loaded successfully!");
-} catch (err) {
-    console.error("Failed to load tuningData.json:", err);
-}
-
-// Helper function to turn a Discord attachment URL into Gemini's expected image object structure
-async function urlToGenerativePart(url) {
-    try {
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
-        const contentType = response.headers['content-type'];
-        return {
-            inlineData: {
-                data: Buffer.from(response.data).toString("base64"),
-                mimeType: contentType
-            }
-        };
-    } catch (error) {
-        console.error("Error downloading attachment:", error);
-        return null;
+    if (fs.existsSync('./tuningData.json')) {
+        const rawData = fs.readFileSync('./tuningData.json', 'utf8');
+        gt7Database = JSON.stringify(JSON.parse(rawData));
+        console.log("GT7 tuning database loaded successfully!");
+    } else {
+        console.log("No tuningData.json found. Running with baseline tuning knowledge.");
     }
+} catch (err) {
+    console.error("Failed to parse tuningData.json:", err);
 }
 
 // Periodic memory cleanup routine running every 5 minutes
@@ -84,10 +70,9 @@ client.on('messageCreate', async (message) => {
 
     if (isDM || isMentioned) {
         const prompt = message.content.replace(`<@${client.user.id}>`, '').trim();
-        const hasAttachment = message.attachments.size > 0;
 
-        if (!prompt && !hasAttachment) {
-            message.reply("Race Genie is online. Drop a tuning screenshot or ask a setup question!");
+        if (!prompt) {
+            message.reply("Race Genie is online. What's the car or track setup issue?");
             return;
         }
 
@@ -96,15 +81,15 @@ client.on('messageCreate', async (message) => {
         const userId = message.author.id;
         const now = Date.now();
 
-        // Manage session tracking
+        // Manage 1-hour session tracking
         if (!conversations.has(userId) || (now - conversations.get(userId).lastActive > TIMEOUT_MS)) {
             conversations.set(userId, { history: [], lastActive: now });
         }
 
         const session = conversations.get(userId);
-        session.lastActive = now;
+        session.lastActive = now; // Reset the 1-hour countdown clock on a fresh message
 
-        // Build the contents array precisely how the SDK expects it
+        // Build the historical API contents payload precisely how the SDK expects it
         const apiContents = [];
         for (const msg of session.history) {
             apiContents.push({
@@ -113,42 +98,18 @@ client.on('messageCreate', async (message) => {
             });
         }
         
-        const currentParts = [];
-        
-        // Default to the high-quota flash-lite model for text chats
-        let targetModel = 'gemini-2.5-flash-lite';
-        
-        // If an image is sent, pull down the inline data block and route to full Flash
-        if (hasAttachment) {
-            const attachment = message.attachments.first();
-            if (attachment.contentType && attachment.contentType.startsWith('image/')) {
-                const imagePart = await urlToGenerativePart(attachment.url);
-                if (imagePart) {
-                    currentParts.push(imagePart);
-                    targetModel = 'gemini-2.5-flash'; 
-                }
-            }
-        }
-        
-        // Append user prompt text to current parts array
-        if (prompt) {
-            currentParts.push({ text: prompt });
-        } else if (hasAttachment) {
-            currentParts.push({ text: "Analyze this car settings sheet and give me track tuning recommendations based on the numbers visible." });
-        }
-
-        // Add the structured user turn to the API history stack
+        // Add the fresh incoming text prompt
         apiContents.push({
             role: 'user',
-            parts: currentParts
+            parts: [{ text: prompt }]
         });
 
-        // Construct the strict system instruction injected with our local database data
-        const dynamicSystemInstruction = `You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). You have advanced capabilities to read racing metrics and values. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must prioritize using the exact mechanical rules, slider directions, and track data provided in this verified GT7 database: ${gt7Database}. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.`;
+        // Construct the strict system instruction injected with your local JSON database data
+        const dynamicSystemInstruction = `You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must prioritize using the exact mechanical rules, slider directions, and track data provided in this verified GT7 database: ${gt7Database}. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.`;
 
         try {
             const response = await ai.models.generateContent({
-                model: targetModel,
+                model: 'gemini-2.5-flash-lite', // Locked permanently to the high-quota free model
                 contents: apiContents,
                 config: {
                     systemInstruction: dynamicSystemInstruction,
@@ -158,9 +119,8 @@ client.on('messageCreate', async (message) => {
 
             const engineerResponse = response.text;
 
-            // Save text representations to session history cache
-            const historyText = prompt || "[Uploaded Image Analysis]";
-            session.history.push({ role: 'user', text: historyText });
+            // Commit the chat exchange to memory
+            session.history.push({ role: 'user', text: prompt });
             session.history.push({ role: 'model', text: engineerResponse });
 
             if (session.history.length > MAX_HISTORY) {
@@ -186,5 +146,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 });
+
+client.on('error', console.error);
 
 client.login(DISCORD_TOKEN);
