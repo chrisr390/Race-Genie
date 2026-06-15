@@ -30,9 +30,9 @@ const conversations = new Map();
 
 // Configuration constants
 const MAX_HISTORY = 6; 
-const TIMEOUT_MS = 60 * 60 * 1000; // 1-hour conversation memory
+const TIMEOUT_MS = 60 * 60 * 1000; // 1-hour conversation memory duration
 
-// Periodic memory cleanup routine running every 5 minutes
+// Periodic memory cleanup routine running every 60 minutes
 setInterval(() => {
     const now = Date.now();
     for (const [userId, session] of conversations.entries()) {
@@ -41,7 +41,7 @@ setInterval(() => {
             console.log(`Cleaned up idle session memory for user: ${userId}`);
         }
     }
-}, 5 * 60 * 1000);
+}, 60 * 60 * 1000); // Changed from 5 * 60 * 1000 to 60 * 60 * 1000
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
