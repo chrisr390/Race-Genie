@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits, ActivityType, ChannelType, Partials } = require('discord.js');
 const http = require('http');
-const fs = require('fs');
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -31,21 +30,7 @@ const conversations = new Map();
 
 // Configuration constants
 const MAX_HISTORY = 6; 
-const TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes (1 hour) memory limit
-
-// Load GT7 Tuning JSON data safely on startup
-let gt7Database = "";
-try {
-    if (fs.existsSync('./tuningData.json')) {
-        const rawData = fs.readFileSync('./tuningData.json', 'utf8');
-        gt7Database = JSON.stringify(JSON.parse(rawData));
-        console.log("GT7 tuning database loaded successfully!");
-    } else {
-        console.log("No tuningData.json found. Running with baseline tuning knowledge.");
-    }
-} catch (err) {
-    console.error("Failed to parse tuningData.json:", err);
-}
+const TIMEOUT_MS = 60 * 60 * 1000; // 1-hour conversation memory
 
 // Periodic memory cleanup routine running every 5 minutes
 setInterval(() => {
@@ -87,9 +72,9 @@ client.on('messageCreate', async (message) => {
         }
 
         const session = conversations.get(userId);
-        session.lastActive = now; // Reset the 1-hour countdown clock on a fresh message
+        session.lastActive = now; // Reset the 1-hour countdown clock
 
-        // Build the historical API contents payload precisely how the SDK expects it
+        // Build the conversation history payload
         const apiContents = [];
         for (const msg of session.history) {
             apiContents.push({
@@ -98,28 +83,28 @@ client.on('messageCreate', async (message) => {
             });
         }
         
-        // Add the fresh incoming text prompt
+        // Add the current user prompt
         apiContents.push({
             role: 'user',
             parts: [{ text: prompt }]
         });
 
-        // Construct the strict system instruction injected with your local JSON database data
-        const dynamicSystemInstruction = `You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must prioritize using the exact mechanical rules, slider directions, and track data provided in this verified GT7 database: ${gt7Database}. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.`;
+        // Built-in instruction framework to guarantee it stays locked to GT7 tracks and rules
+        const systemInstruction = "You are Race Genie, a no-nonsense trackside race engineer dedicated strictly to Gran Turismo 7 (GT7). Pay close attention to the track mentioned in the prompt and do not mix up track characteristics. Do not say hello, do not introduce the topic, and do not compliment choices. Start immediately with direct, actionable tuning advice using bullet points. You must provide specific numerical ranges, slider directions, or concrete mechanical adjustments (like suspension, LSD, ballast, or downforce) for the exact car, tires, and track conditions requested. Keep explanations to one clear sentence per point.";
 
         try {
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-lite', // Locked permanently to the high-quota free model
+                model: 'gemini-2.5-flash-lite', 
                 contents: apiContents,
                 config: {
-                    systemInstruction: dynamicSystemInstruction,
+                    systemInstruction: systemInstruction,
                     maxOutputTokens: 1850
                 }
             });
 
             const engineerResponse = response.text;
 
-            // Commit the chat exchange to memory
+            // Commit the exchange to memory
             session.history.push({ role: 'user', text: prompt });
             session.history.push({ role: 'model', text: engineerResponse });
 
@@ -146,7 +131,5 @@ client.on('messageCreate', async (message) => {
         }
     }
 });
-
-client.on('error', console.error);
 
 client.login(DISCORD_TOKEN);
