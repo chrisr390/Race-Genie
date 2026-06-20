@@ -75,7 +75,7 @@ client.on('interactionCreate', async (interaction) => {
         const regulations = interaction.options.getString('regulations');
         const screenshot = interaction.options.getAttachment('screenshot');
 
-        // Defer reply immediately since Gemini calls can take over 3 seconds
+        // Defer reply ephemerally in the channel so the user knows the bot is working
         await interaction.deferReply({ ephemeral: true });
 
         // Retrieve user session history
@@ -112,24 +112,29 @@ client.on('interactionCreate', async (interaction) => {
             const responseText = `🏁 **YOUR PRIVATE SETUP SHEET:**\n\n${advice}`;
             const chunks = splitMessage(responseText);
 
-            // Edit the initial deferred reply with the first chunk
-            await interaction.editReply({
-                content: chunks[0]
-            });
-
-            // Send any remaining chunks as ephemeral follow-ups
-            for (let i = 1; i < chunks.length; i++) {
-                await interaction.followUp({
-                    content: chunks[i],
-                    ephemeral: true
-                });
+            // Send the setup sheet directly to the user's private DMs
+            for (const chunk of chunks) {
+                await user.send({ content: chunk });
             }
+
+            // Update the channel interaction so they know to check their inbox
+            await interaction.editReply({
+                content: "🏁 *Analysis complete! Your custom setup sheet has been sent directly to your DMs.*"
+            });
 
         } catch (error) {
             console.error("Interaction Setup Error:", error);
-            await interaction.editReply({
-                content: "⚠️ *Engineering telemetry link dropped. Please try again in a moment.*"
-            });
+            
+            // Handle cases where the user has DMs blocked/turned off for the server
+            if (error.code === 50007) {
+                await interaction.editReply({
+                    content: "⚠️ *I tried to DM you your setup, but your privacy settings are blocking direct messages from server members. Please enable DMs and try again!*"
+                });
+            } else {
+                await interaction.editReply({
+                    content: "⚠️ *Engineering telemetry link dropped. Please try again in a moment.*"
+                });
+            }
         }
     }
 
