@@ -70,7 +70,8 @@ client.on('interactionCreate', async (interaction) => {
         const track = interaction.options.getString('track');
         const weather = interaction.options.getString('weather') || 'Standard Dry';
         const drivetrain = interaction.options.getString('drivetrain');
-        const downforce = interaction.options.getString('downforce');
+        const frontDownforce = interaction.options.getString('front_downforce');
+        const rearDownforce = interaction.options.getString('rear_downforce');
         const regulations = interaction.options.getString('regulations');
         const screenshot = interaction.options.getAttachment('screenshot');
 
@@ -89,8 +90,11 @@ client.on('interactionCreate', async (interaction) => {
         if (drivetrain) {
             userPrompt += `\n- Drivetrain Layout: ${drivetrain}`;
         }
-        if (downforce) {
-            userPrompt += `\n- Downforce Limits/Targets: ${downforce}`;
+        if (frontDownforce) {
+            userPrompt += `\n- Front Downforce Limits/Targets: ${frontDownforce}`;
+        }
+        if (rearDownforce) {
+            userPrompt += `\n- Rear Downforce Limits/Targets: ${rearDownforce}`;
         }
         if (regulations) {
             userPrompt += `\n- Tuning Regulations/Restrictions: ${regulations}`;
