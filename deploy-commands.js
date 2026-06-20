@@ -33,8 +33,13 @@ const commands = [
                 )
         )
         .addStringOption(option =>
-            option.setName('downforce')
-                .setDescription('Specify Min/Max downforce limits if restricted (e.g., Min 200 / Max 350)')
+            option.setName('front_downforce')
+                .setDescription('Specify Front Min/Max limits if restricted (e.g., Min 100 / Max 200)')
+                .setRequired(false)
+        )
+        .addStringOption(option =>
+            option.setName('rear_downforce')
+                .setDescription('Specify Rear Min/Max limits if restricted (e.g., Min 250 / Max 400)')
                 .setRequired(false)
         )
         .addStringOption(option =>
