@@ -65,7 +65,7 @@ client.on('interactionCreate', async (interaction) => {
 
     const { commandName, user } = interaction;
 
-    if (commandName === 'setup') {
+    if (commandName === 'car-setup') {
         const car = interaction.options.getString('car');
         const track = interaction.options.getString('track');
         const weather = interaction.options.getString('weather') || 'Standard Dry';
