@@ -4,7 +4,12 @@
   "description": "Trackside AI race engineer for FCSC",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "deploy-commands": "node deploy-commands.js",
+    "dev": "node --watch --env-file=.env index.js"
+  },
+  "engines": {
+    "node": ">=20.6.0"
   },
   "dependencies": {
     "@google/genai": "latest",
