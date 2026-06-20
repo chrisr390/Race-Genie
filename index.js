@@ -49,7 +49,6 @@ function splitMessage(text, maxLength = 2000) {
 }
 
 // Initialize Discord Client.
-// When using ONLY slash commands, we only need the Guilds intent.
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds
@@ -71,10 +70,11 @@ client.on('interactionCreate', async (interaction) => {
         const track = interaction.options.getString('track');
         const weather = interaction.options.getString('weather') || 'Standard Dry';
         const drivetrain = interaction.options.getString('drivetrain');
+        const downforce = interaction.options.getString('downforce');
+        const regulations = interaction.options.getString('regulations');
         const screenshot = interaction.options.getAttachment('screenshot');
 
         // Defer reply immediately since Gemini calls can take over 3 seconds
-        // Using ephemeral: true so the setup remains private to the user
         await interaction.deferReply({ ephemeral: true });
 
         // Retrieve user session history
@@ -88,6 +88,12 @@ client.on('interactionCreate', async (interaction) => {
 
         if (drivetrain) {
             userPrompt += `\n- Drivetrain Layout: ${drivetrain}`;
+        }
+        if (downforce) {
+            userPrompt += `\n- Downforce Limits/Targets: ${downforce}`;
+        }
+        if (regulations) {
+            userPrompt += `\n- Tuning Regulations/Restrictions: ${regulations}`;
         }
         if (screenshot) {
             userPrompt += `\n- A screenshot of the current tuning sheet is attached.`;
