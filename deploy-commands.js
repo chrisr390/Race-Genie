@@ -3,8 +3,8 @@ const { DISCORD_TOKEN, CLIENT_ID } = require('./config');
 
 const commands = [
     new SlashCommandBuilder()
-        .setName('setup')
-        .setDescription('Get a customized GT7 setup recommendations or review an existing one')
+        .setName('car-setup')
+        .setDescription('Get customized GT7 setup recommendations or review an existing one')
         .addStringOption(option =>
             option.setName('car')
                 .setDescription('The car model (e.g., Porsche 911 GT3 RS, Gr.3 Mercedes)')
