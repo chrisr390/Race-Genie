@@ -1,48 +1,57 @@
-// Simple session store interface to manage bot conversation memory.
-// Easily swappable for SQLite, Turso, or Redis in the future.
-const conversations = new Map();
+// In-memory data store for user setup sessions
+const sessions = new Map();
 
-const MAX_HISTORY = 6; 
-const TIMEOUT_MS = 60 * 60 * 1000; // 1-hour session duration
+// 24 hours in milliseconds (24 * 60 * 60 * 1000)
+const SESSION_TIMEOUT = 86400000;
 
+/**
+ * Retrieves a user's active session. If it has expired (>24 hours), it automatically clears it.
+ */
 function getSession(userId) {
-    const now = Date.now();
-    if (!conversations.has(userId) || (now - conversations.get(userId).lastActive > TIMEOUT_MS)) {
-        conversations.set(userId, { history: [], lastActive: now });
+    const currentTime = Date.now();
+    const session = sessions.get(userId);
+
+    if (session) {
+        // Check if 24 hours have passed since their last engineering activity
+        if (currentTime - session.lastAccessed > SESSION_TIMEOUT) {
+            sessions.delete(userId);
+            return { history: [], lastAccessed: currentTime };
+        }
+        
+        // Update access time to keep it alive if they are actively chatting within the 24 hours
+        session.lastAccessed = currentTime;
+        return session;
     }
-    const session = conversations.get(userId);
-    session.lastActive = now;
-    return session;
+
+    // Initialize fresh structure if none exists
+    const newSession = { history: [], lastAccessed: currentTime };
+    sessions.set(userId, newSession);
+    return newSession;
 }
 
-function updateSessionHistory(userId, userPrompt, modelResponse) {
-    const session = getSession(userId);
-    session.history.push({ role: 'user', text: userPrompt });
-    session.history.push({ role: 'model', text: modelResponse });
-
-    if (session.history.length > MAX_HISTORY) {
-        session.history.splice(0, session.history.length - MAX_HISTORY);
-    }
+/**
+ * Saves or appends details to the active conversation history matrix
+ */
+function updateSessionHistory(userId, userPrompt, botResponse) {
+    const session = getSession(userId); // This will naturally handle or refresh active state
+    
+    session.history.push({ role: 'user', parts: [{ text: userPrompt }] });
+    session.history.push({ role: 'model', parts: [{ text: botResponse }] });
+    session.lastAccessed = Date.now();
+    
+    sessions.set(userId, session);
 }
 
+/**
+ * Manually flushes the session baseline
+ */
 function clearSession(userId) {
-    if (conversations.has(userId)) {
-        conversations.delete(userId);
+    if (sessions.has(userId)) {
+        sessions.delete(userId);
         return true;
     }
     return false;
 }
-
-// Periodic memory cleanup routine running every 60 minutes
-setInterval(() => {
-    const now = Date.now();
-    for (const [userId, session] of conversations.entries()) {
-        if (now - session.lastActive > TIMEOUT_MS) {
-            conversations.delete(userId);
-            console.log(`Cleaned up idle session memory for user: ${userId}`);
-        }
-    }
-}, 60 * 60 * 1000);
 
 module.exports = {
     getSession,
