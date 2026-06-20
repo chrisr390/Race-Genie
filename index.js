@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, ActivityType } = require('discord.js');
 const http = require('http');
 const { DISCORD_TOKEN, PORT } = require('./config');
 const { generateSetupAdvice } = require('./services/gemini');
@@ -48,11 +48,14 @@ function splitMessage(text, maxLength = 2000) {
     return chunks;
 }
 
-// Initialize Discord Client.
+// Initialize Discord Client with DM and Message Content intents enabled
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds
-    ]
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent
+    ],
+    partials: [Partials.Channel] // Required to receive DMs reliably
 });
 
 client.once('ready', () => {
@@ -60,6 +63,7 @@ client.once('ready', () => {
     client.user.setActivity('GT7 Telemetry', { type: ActivityType.Watching });
 });
 
+// --- HANDLE SLASH COMMANDS ---
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -75,13 +79,10 @@ client.on('interactionCreate', async (interaction) => {
         const regulations = interaction.options.getString('regulations');
         const screenshot = interaction.options.getAttachment('screenshot');
 
-        // Defer reply ephemerally in the channel so the user knows the bot is working
         await interaction.deferReply({ ephemeral: true });
 
-        // Retrieve user session history
         const session = getSession(user.id);
 
-        // Construct clean structured prompt for Gemini
         let userPrompt = `Request details:
 - Car: ${car}
 - Track: ${track}
@@ -105,27 +106,21 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             const advice = await generateSetupAdvice(userPrompt, session.history, screenshot);
-
-            // Update session history
             updateSessionHistory(user.id, userPrompt, advice);
 
             const responseText = `🏁 **YOUR PRIVATE SETUP SHEET:**\n\n${advice}`;
             const chunks = splitMessage(responseText);
 
-            // Send the setup sheet directly to the user's private DMs
             for (const chunk of chunks) {
                 await user.send({ content: chunk });
             }
 
-            // Update the channel interaction so they know to check their inbox
             await interaction.editReply({
                 content: "🏁 *Analysis complete! Your custom setup sheet has been sent directly to your DMs.*"
             });
 
         } catch (error) {
             console.error("Interaction Setup Error:", error);
-            
-            // Handle cases where the user has DMs blocked/turned off for the server
             if (error.code === 50007) {
                 await interaction.editReply({
                     content: "⚠️ *I tried to DM you your setup, but your privacy settings are blocking direct messages from server members. Please enable DMs and try again!*"
@@ -151,6 +146,38 @@ client.on('interactionCreate', async (interaction) => {
                 ephemeral: true
             });
         }
+    }
+});
+
+// --- HANDLE NATURAL DM CHAT ---
+client.on('messageCreate', async (message) => {
+    // Only listen to messages sent in direct messages, and ignore other bots
+    if (message.channel.type !== 1 || message.author.bot) return;
+
+    const user = message.author;
+    
+    // Show typing indicator so the driver knows the bot is working on a response
+    await message.channel.sendTyping();
+
+    const session = getSession(user.id);
+    const userPrompt = message.content;
+
+    try {
+        // Send the follow-up question and session history to Gemini
+        const reply = await generateSetupAdvice(userPrompt, session.history, null);
+        
+        // Save the follow-up interaction to memory
+        updateSessionHistory(user.id, userPrompt, reply);
+
+        const chunks = splitMessage(reply);
+        for (const chunk of chunks) {
+            await message.channel.send({ content: chunk });
+        }
+    } catch (error) {
+        console.error("DM Chat Error:", error);
+        await message.channel.send({
+            content: "⚠️ *Engineering link dropped. Let's try that adjustment again in a moment.*"
+        });
     }
 });
 
