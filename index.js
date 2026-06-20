@@ -3,6 +3,7 @@ const http = require('http');
 const { DISCORD_TOKEN, PORT } = require('./config');
 const { generateSetupAdvice } = require('./services/gemini');
 const { getSession, updateSessionHistory, clearSession } = require('./services/session');
+const { searchTracks, searchCars } = require('./services/autocomplete'); // Darren's autocomplete service
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -48,7 +49,7 @@ function splitMessage(text, maxLength = 2000) {
     return chunks;
 }
 
-// Initialize Discord Client
+// Initialize Discord Client with DM and Message Content intents enabled
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -63,8 +64,33 @@ client.once('ready', () => {
     client.user.setActivity('GT7 Telemetry', { type: ActivityType.Watching });
 });
 
-// --- HANDLE SLASH COMMANDS ---
+// --- HANDLE INTERACTIONS (SLASH COMMANDS & AUTOCOMPLETE) ---
 client.on('interactionCreate', async (interaction) => {
+    
+    // Darren's Autocomplete Listener (Modified to match our /car-setup command)
+    if (interaction.isAutocomplete()) {
+        const { commandName } = interaction;
+        if (commandName === 'car-setup') {
+            const focusedOption = interaction.options.getFocused(true);
+            let choices = [];
+
+            if (focusedOption.name === 'car') {
+                choices = searchCars(focusedOption.value);
+            } else if (focusedOption.name === 'track') {
+                choices = searchTracks(focusedOption.value);
+            }
+
+            try {
+                await interaction.respond(
+                    choices.map(choice => ({ name: choice, value: choice }))
+                );
+            } catch (err) {
+                console.error("Autocomplete Response Error:", err);
+            }
+        }
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const { commandName, user } = interaction;
@@ -156,8 +182,6 @@ client.on('messageCreate', async (message) => {
     const user = message.author;
     const session = getSession(user.id);
 
-    // If the session history is empty, it means they don't have an active tuning baseline 
-    // or their previous 24-hour session window expired and was automatically cleared.
     if (!session.history || session.history.length === 0) {
         return message.channel.send({
             content: "🏁 *Your active engineering session has expired or has not been initialized yet. Please return to the server channel and use the `/car-setup` command to start a new tuning profile!*"
