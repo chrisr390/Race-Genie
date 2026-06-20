@@ -48,14 +48,14 @@ function splitMessage(text, maxLength = 2000) {
     return chunks;
 }
 
-// Initialize Discord Client with DM and Message Content intents enabled
+// Initialize Discord Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.MessageContent
     ],
-    partials: [Partials.Channel] // Required to receive DMs reliably
+    partials: [Partials.Channel]
 });
 
 client.once('ready', () => {
@@ -151,22 +151,24 @@ client.on('interactionCreate', async (interaction) => {
 
 // --- HANDLE NATURAL DM CHAT ---
 client.on('messageCreate', async (message) => {
-    // Only listen to messages sent in direct messages, and ignore other bots
     if (message.channel.type !== 1 || message.author.bot) return;
 
     const user = message.author;
-    
-    // Show typing indicator so the driver knows the bot is working on a response
-    await message.channel.sendTyping();
-
     const session = getSession(user.id);
+
+    // If the session history is empty, it means they don't have an active tuning baseline 
+    // or their previous 24-hour session window expired and was automatically cleared.
+    if (!session.history || session.history.length === 0) {
+        return message.channel.send({
+            content: "🏁 *Your active engineering session has expired or has not been initialized yet. Please return to the server channel and use the `/car-setup` command to start a new tuning profile!*"
+        });
+    }
+    
+    await message.channel.sendTyping();
     const userPrompt = message.content;
 
     try {
-        // Send the follow-up question and session history to Gemini
         const reply = await generateSetupAdvice(userPrompt, session.history, null);
-        
-        // Save the follow-up interaction to memory
         updateSessionHistory(user.id, userPrompt, reply);
 
         const chunks = splitMessage(reply);
