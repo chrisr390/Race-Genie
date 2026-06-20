@@ -32,6 +32,16 @@ const commands = [
                     { name: 'RR (Rear Engine, Rear Drive)', value: 'RR' }
                 )
         )
+        .addStringOption(option =>
+            option.setName('downforce')
+                .setDescription('Specify Min/Max downforce limits if restricted (e.g., Min 200 / Max 350)')
+                .setRequired(false)
+        )
+        .addStringOption(option =>
+            option.setName('regulations')
+                .setDescription('Tuning restrictions (e.g., Only camber, aero, and brake balance allowed)')
+                .setRequired(false)
+        )
         .addAttachmentOption(option =>
             option.setName('screenshot')
                 .setDescription('Upload a screenshot of your current tuning sheet for analysis')
@@ -49,10 +59,6 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
-        // Register commands globally.
-        // Note: Global commands can take up to an hour to cache/propagate in Discord.
-        // For instant testing in a specific server, you can use:
-        // Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID)
         await rest.put(
             Routes.applicationCommands(CLIENT_ID),
             { body: commands },
