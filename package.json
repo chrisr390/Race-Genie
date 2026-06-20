@@ -1,6 +1,6 @@
 {
   "name": "race-genie",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "Trackside AI race engineer for FCSC",
   "main": "index.js",
   "scripts": {
