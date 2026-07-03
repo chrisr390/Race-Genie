@@ -5,8 +5,8 @@ const { generateSetupAdvice } = require('./services/gemini');
 const { getSession, updateSessionHistory, clearSession } = require('./services/session');
 const { searchTracks, searchCars } = require('./services/autocomplete');
 
-// 🔧 PASTE YOUR PRIVATE ADMIN LOG CHANNEL ID HERE:
-const ADMIN_LOG_CHANNEL_ID = 1522549619538526258;
+// 🔧 Hardcoded Production Admin Log Channel ID
+const ADMIN_LOG_CHANNEL_ID = '1522549619538526258';
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -63,7 +63,7 @@ async function logToAdminChannel(logMessage) {
     }
 }
 
-// Initialize Discord Client
+// Initialize Discord Client with accurate Gateway Intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -122,7 +122,7 @@ client.on('interactionCreate', async (interaction) => {
         if (regulations) userPrompt += `\n- Regulations: ${regulations}`;
         if (screenshot) userPrompt += `\n- Screenshot attached.`;
 
-        // Log the initial request initiation to admins
+        // Telemetry Logging: Initial session spin-up
         await logToAdminChannel(`⚙️ **New Engineering Session Started**\n👤 **Driver:** ${user.tag} (${user.id})\n🏎️ **Car:** ${car}\n📍 **Track:** ${track}\n⛅ **Weather:** ${weather}`);
 
         try {
@@ -140,7 +140,7 @@ client.on('interactionCreate', async (interaction) => {
                 content: "🏁 *Analysis complete! Your custom setup sheet has been sent directly to your DMs.*"
             });
 
-            // Log successful deployment
+            // Telemetry Logging: Successful delivery
             await logToAdminChannel(`✅ **Setup Sheet Delivered**\n👤 **Driver:** ${user.tag}\n📋 *Baseline sheet generated and successfully DMed.*`);
 
         } catch (error) {
@@ -190,7 +190,7 @@ client.on('messageCreate', async (message) => {
     await message.channel.sendTyping();
     const userPrompt = message.content;
 
-    // Log the incoming follow-up query to the admin channel
+    // Telemetry Logging: DM follow-up intercept
     await logToAdminChannel(`💬 **DM Follow-up Received**\n👤 **Driver:** ${user.tag}\n📝 **Message:** "${userPrompt}"`);
 
     try {
