@@ -58,3 +58,24 @@ module.exports = {
     updateSessionHistory,
     clearSession
 };
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Appends user tuning feedback directly to a local log file for future engineering refinement.
+ */
+function logUserFeedback(userId, username, car, rating, comments) {
+    const logPath = path.join(__dirname, '../feedback.log');
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] Driver: ${username} (${userId}) | Car: ${car} | Rating: ${rating} | Feedback: ${comments || 'None'}\n`;
+    
+    fs.appendFile(logPath, logEntry, (err) => {
+        if (err) console.error('Failed to write to feedback log:', err);
+    });
+}
+
+// Ensure you export it along with your other functions at the bottom
+module.exports = {
+    // ... keep your existing exports here (getSession, etc.)
+    logUserFeedback
+};
