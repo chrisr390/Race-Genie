@@ -136,8 +136,8 @@ client.on('interactionCreate', async (interaction) => {
         if (regulations) userPrompt += `\n- Regulations: ${regulations}`;
         if (screenshot) userPrompt += `\n- Screenshot attached.`;
 
-        // Telemetry Logging: Initial session spin-up (Sanitized: Content removed)
-        await logToAdminChannel(`⚙️ **New Engineering Session Started**\n👤 **Driver:** ${user.tag} (${user.id})\n📋 *Baseline request submitted successfully.*`);
+        // Telemetry Logging: Only revealing User and Car parameters for monitoring
+        await logToAdminChannel(`⚙️ **New Engineering Session Started**\n👤 **Driver:** ${user.tag} (${user.id})\n🏎️ **Car:** ${car}\n📋 *Baseline request submitted successfully.*`);
 
         try {
             const advice = await generateSetupAdvice(userPrompt, session.history, screenshot);
@@ -155,7 +155,7 @@ client.on('interactionCreate', async (interaction) => {
             });
 
             // Telemetry Logging: Successful delivery
-            await logToAdminChannel(`✅ **Setup Sheet Delivered**\n👤 **Driver:** ${user.tag}\n📋 *Baseline sheet generated and successfully DMed.*`);
+            await logToAdminChannel(`✅ **Setup Sheet Delivered**\n👤 **Driver:** ${user.tag}\n🏎️ **Car:** ${car}\n📋 *Baseline sheet generated and successfully DMed.*`);
 
         } catch (error) {
             console.error("Interaction Setup Error:", error);
