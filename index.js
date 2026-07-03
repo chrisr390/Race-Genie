@@ -141,12 +141,14 @@ client.on('interactionCreate', async (interaction) => {
             const session = getSession(interaction.user.id);
             const currentCar = session.activeCar || 'Unknown Car';
 
-            // Save feedback directly to local training ledger
-            logUserFeedback(interaction.user.id, interaction.user.tag, currentCar, ratingType, userNotes);
+            // Save feedback directly to local training ledger if method exists
+            if (typeof logUserFeedback === 'function') {
+                logUserFeedback(interaction.user.id, interaction.user.tag, currentCar, ratingType, userNotes);
+            }
 
             // Send sanitized status alert to admin logging dashboard
             const emoji = ratingType === 'up' ? '👍' : '👎';
-            await logToAdminChannel(`📊 **Tuning Feedback Submitted**\n👤 **Driver:** ${interaction.user.tag}\n🏎️ **Car:** ${currentCar}\n🎯 **Rating:** ${emoji}\n📋 *Review notes captured silently in learning engine ledger.*`);
+            await logToAdminChannel(`📊 **Tuning Feedback Submitted**\n👤 **Driver:** ${interaction.user.tag}\n🏎️ **Car:** ${currentCar}\n🎯 **Rating:** ${emoji}\n📋 *Review notes: "${userNotes}"*`);
 
             await interaction.reply({
                 content: "🏁 **Feedback Received:** Thank you! Your notes have been securely compiled into the garage telemetry pool to help refine future tune paths.",
