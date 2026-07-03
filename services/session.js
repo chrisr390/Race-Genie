@@ -4,6 +4,9 @@ const sessions = new Map();
 // 24 hours in milliseconds (24 * 60 * 60 * 1000)
 const SESSION_TIMEOUT = 86400000;
 
+const fs = require('fs');
+const path = require('path');
+
 /**
  * Retrieves a user's active session. If it has expired (>24 hours), it automatically clears it.
  */
@@ -53,14 +56,6 @@ function clearSession(userId) {
     return false;
 }
 
-module.exports = {
-    getSession,
-    updateSessionHistory,
-    clearSession
-};
-const fs = require('fs');
-const path = require('path');
-
 /**
  * Appends user tuning feedback directly to a local log file for future engineering refinement.
  */
@@ -74,8 +69,10 @@ function logUserFeedback(userId, username, car, rating, comments) {
     });
 }
 
-// Ensure you export it along with your other functions at the bottom
+// All functions cleanly bundled together into a single export package
 module.exports = {
-    // ... keep your existing exports here (getSession, etc.)
+    getSession,
+    updateSessionHistory,
+    clearSession,
     logUserFeedback
 };
