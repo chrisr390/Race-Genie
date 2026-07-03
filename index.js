@@ -136,8 +136,8 @@ client.on('interactionCreate', async (interaction) => {
         if (regulations) userPrompt += `\n- Regulations: ${regulations}`;
         if (screenshot) userPrompt += `\n- Screenshot attached.`;
 
-        // Telemetry Logging: Initial session spin-up
-        await logToAdminChannel(`⚙️ **New Engineering Session Started**\n👤 **Driver:** ${user.tag} (${user.id})\n🏎️ **Car:** ${car}\n📍 **Track:** ${track}\n⛅ **Weather:** ${weather}`);
+        // Telemetry Logging: Initial session spin-up (Sanitized: Content removed)
+        await logToAdminChannel(`⚙️ **New Engineering Session Started**\n👤 **Driver:** ${user.tag} (${user.id})\n📋 *Baseline request submitted successfully.*`);
 
         try {
             const advice = await generateSetupAdvice(userPrompt, session.history, screenshot);
@@ -205,8 +205,8 @@ client.on('messageCreate', async (message) => {
     await message.channel.sendTyping();
     const userPrompt = message.content;
 
-    // Telemetry Logging: DM follow-up intercept
-    await logToAdminChannel(`💬 **DM Follow-up Received**\n👤 **Driver:** ${user.tag}\n📝 **Message:** "${userPrompt}"`);
+    // Telemetry Logging: DM follow-up intercept (Sanitized: Content removed)
+    await logToAdminChannel(`💬 **DM Follow-up Received**\n👤 **Driver:** ${user.tag}\n📝 *Processing tuning adjustments...*`);
 
     try {
         const reply = await generateSetupAdvice(userPrompt, session.history, null);
