@@ -8,6 +8,9 @@ const { searchTracks, searchCars } = require('./services/autocomplete');
 // 🔧 Hardcoded Production Admin Log Channel ID
 const ADMIN_LOG_CHANNEL_ID = '1522549619538526258';
 
+// 🔒 Hardcoded Premium Loyalty Role ID
+const LOYALTY_ROLE_ID = '1517792455783874650';
+
 // Simple web server for Render health checks
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -100,7 +103,18 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) return;
-    const { commandName, user } = interaction;
+    const { commandName, user, member } = interaction;
+
+    // 🔒 ROLE SECURITY CHECK: Verify user has the required loyalty benefit role
+    if (commandName === 'car-setup' || commandName === 'reset') {
+        if (!member || !member.roles.cache.has(LOYALTY_ROLE_ID)) {
+            await logToAdminChannel(`🛡️ **Access Denied (Missing Role)**\n👤 **User:** ${user.tag} (${user.id})\n⚠️ Attempted to use \`/${commandName}\` without the loyalty benefit role.`);
+            return interaction.reply({
+                content: "🔒 **Access Restricted:** Race Genie is a premium loyalty benefit reserved for specific server members. If you think this is a mistake, please reach out to an admin!",
+                ephemeral: true
+            });
+        }
+    }
 
     if (commandName === 'car-setup') {
         const car = interaction.options.getString('car');
@@ -181,6 +195,7 @@ client.on('messageCreate', async (message) => {
     const user = message.author;
     const session = getSession(user.id);
 
+    // DM context relies on a valid server-side session, which already checked the role at initialization
     if (!session.history || session.history.length === 0) {
         return message.channel.send({
             content: "🏁 *Your active engineering session has expired or has not been initialized yet. Please return to the server channel and use the `/car-setup` command to start a new tuning profile!*"
