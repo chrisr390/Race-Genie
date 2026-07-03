@@ -15,6 +15,23 @@ const commands = [
                 .setDescription('The track name (e.g., Spa-Francorchamps, Monza)')
                 .setRequired(true)
         )
+.addStringOption(option =>
+    option.setName('tyres')
+        .setDescription('Select your current tyre compound')
+        .setRequired(true)
+        .addChoices(
+            { name: 'Racing: Soft (RS)', value: 'Racing Soft' },
+            { name: 'Racing: Medium (RM)', value: 'Racing Medium' },
+            { name: 'Racing: Hard (RH)', value: 'Racing Hard' },
+            { name: 'Sports: Soft (SS)', value: 'Sports Soft' },
+            { name: 'Sports: Medium (SM)', value: 'Sports Medium' },
+            { name: 'Sports: Hard (SH)', value: 'Sports Hard' },
+            { name: 'Comfort: Soft (CS)', value: 'Comfort Soft' },
+            { name: 'Comfort: Medium (CM)', value: 'Comfort Medium' },
+            { name: 'Comfort: Hard (CH)', value: 'Comfort Hard' },
+            { name: 'Racing: Intermediates (IM)', value: 'Intermediates' },
+            { name: 'Racing: Heavy Wet (W)', value: 'Heavy Wet' }
+        )
         .addStringOption(option =>
             option.setName('weather')
                 .setDescription('Weather conditions (e.g., Dry, Wet, Wet to Dry transition)')
