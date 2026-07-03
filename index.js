@@ -3,7 +3,10 @@ const http = require('http');
 const { DISCORD_TOKEN, PORT } = require('./config');
 const { generateSetupAdvice } = require('./services/gemini');
 const { getSession, updateSessionHistory, clearSession } = require('./services/session');
-const { searchTracks, searchCars } = require('./services/autocomplete'); // Darren's autocomplete service
+const { searchTracks, searchCars } = require('./services/autocomplete');
+
+// 🔧 PASTE YOUR PRIVATE ADMIN LOG CHANNEL ID HERE:
+const ADMIN_LOG_CHANNEL_ID = 1522549619538526258;
 
 // Simple web server for Render health checks
 http.createServer((req, res) => {
@@ -18,10 +21,8 @@ http.createServer((req, res) => {
  */
 function splitMessage(text, maxLength = 2000) {
     if (text.length <= maxLength) return [text];
-    
     const chunks = [];
     let currentChunk = '';
-    
     const lines = text.split('\n');
     for (const line of lines) {
         if (line.length > maxLength) {
@@ -45,11 +46,24 @@ function splitMessage(text, maxLength = 2000) {
     if (currentChunk.trim()) {
         chunks.push(currentChunk.trim());
     }
-    
     return chunks;
 }
 
-// Initialize Discord Client with DM and Message Content intents enabled
+/**
+ * Helper function to send formatted logs to the designated private admin channel
+ */
+async function logToAdminChannel(logMessage) {
+    try {
+        const channel = await client.channels.fetch(ADMIN_LOG_CHANNEL_ID);
+        if (channel && channel.isTextBased()) {
+            await channel.send({ content: logMessage });
+        }
+    } catch (err) {
+        console.error("Failed to send log to admin channel:", err);
+    }
+}
+
+// Initialize Discord Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -66,24 +80,18 @@ client.once('ready', () => {
 
 // --- HANDLE INTERACTIONS (SLASH COMMANDS & AUTOCOMPLETE) ---
 client.on('interactionCreate', async (interaction) => {
-    
-    // Darren's Autocomplete Listener (Modified to match our /car-setup command)
     if (interaction.isAutocomplete()) {
         const { commandName } = interaction;
         if (commandName === 'car-setup') {
             const focusedOption = interaction.options.getFocused(true);
             let choices = [];
-
             if (focusedOption.name === 'car') {
                 choices = searchCars(focusedOption.value);
             } else if (focusedOption.name === 'track') {
                 choices = searchTracks(focusedOption.value);
             }
-
             try {
-                await interaction.respond(
-                    choices.map(choice => ({ name: choice, value: choice }))
-                );
+                await interaction.respond(choices.map(choice => ({ name: choice, value: choice })));
             } catch (err) {
                 console.error("Autocomplete Response Error:", err);
             }
@@ -92,7 +100,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) return;
-
     const { commandName, user } = interaction;
 
     if (commandName === 'car-setup') {
@@ -106,29 +113,17 @@ client.on('interactionCreate', async (interaction) => {
         const screenshot = interaction.options.getAttachment('screenshot');
 
         await interaction.deferReply({ ephemeral: true });
-
         const session = getSession(user.id);
 
-        let userPrompt = `Request details:
-- Car: ${car}
-- Track: ${track}
-- Weather/Conditions: ${weather}`;
+        let userPrompt = `Request details:\n- Car: ${car}\n- Track: ${track}\n- Weather/Conditions: ${weather}`;
+        if (drivetrain) userPrompt += `\n- Drivetrain Layout: ${drivetrain}`;
+        if (frontDownforce) userPrompt += `\n- Front Downforce: ${frontDownforce}`;
+        if (rearDownforce) userPrompt += `\n- Rear Downforce: ${rearDownforce}`;
+        if (regulations) userPrompt += `\n- Regulations: ${regulations}`;
+        if (screenshot) userPrompt += `\n- Screenshot attached.`;
 
-        if (drivetrain) {
-            userPrompt += `\n- Drivetrain Layout: ${drivetrain}`;
-        }
-        if (frontDownforce) {
-            userPrompt += `\n- Front Downforce Limits/Targets: ${frontDownforce}`;
-        }
-        if (rearDownforce) {
-            userPrompt += `\n- Rear Downforce Limits/Targets: ${rearDownforce}`;
-        }
-        if (regulations) {
-            userPrompt += `\n- Tuning Regulations/Restrictions: ${regulations}`;
-        }
-        if (screenshot) {
-            userPrompt += `\n- A screenshot of the current tuning sheet is attached.`;
-        }
+        // Log the initial request initiation to admins
+        await logToAdminChannel(`⚙️ **New Engineering Session Started**\n👤 **Driver:** ${user.tag} (${user.id})\n🏎️ **Car:** ${car}\n📍 **Track:** ${track}\n⛅ **Weather:** ${weather}`);
 
         try {
             const advice = await generateSetupAdvice(userPrompt, session.history, screenshot);
@@ -145,32 +140,36 @@ client.on('interactionCreate', async (interaction) => {
                 content: "🏁 *Analysis complete! Your custom setup sheet has been sent directly to your DMs.*"
             });
 
+            // Log successful deployment
+            await logToAdminChannel(`✅ **Setup Sheet Delivered**\n👤 **Driver:** ${user.tag}\n📋 *Baseline sheet generated and successfully DMed.*`);
+
         } catch (error) {
             console.error("Interaction Setup Error:", error);
             if (error.code === 50007) {
                 await interaction.editReply({
-                    content: "⚠️ *I tried to DM you your setup, but your privacy settings are blocking direct messages from server members. Please enable DMs and try again!*"
+                    content: "⚠️ *I tried to DM you your setup, but your privacy settings are blocking direct messages. Please enable DMs and try again!*"
                 });
+                await logToAdminChannel(`❌ **Delivery Failed (DMs Blocked)**\n👤 **Driver:** ${user.tag}\n⚠️ *User has direct messages disabled.*`);
             } else {
                 await interaction.editReply({
                     content: "⚠️ *Engineering telemetry link dropped. Please try again in a moment.*"
                 });
+                await logToAdminChannel(`💥 **Engine Error**\n👤 **Driver:** ${user.tag}\n⚠️ *Internal error occurred during execution.*`);
             }
         }
     }
 
     if (commandName === 'reset') {
         const deleted = clearSession(user.id);
+        const logMsg = deleted 
+            ? `🧹 **Manual Reset:** ${user.tag} cleared their active session cache.` 
+            : `🧹 **Manual Reset:** ${user.tag} attempted a reset but had no active cache.`;
+        await logToAdminChannel(logMsg);
+
         if (deleted) {
-            await interaction.reply({
-                content: "🏁 *Race memory cleared. Setup cache is back to baseline.*",
-                ephemeral: true
-            });
+            await interaction.reply({ content: "🏁 *Race memory cleared. Setup cache is back to baseline.*", ephemeral: true });
         } else {
-            await interaction.reply({
-                content: "🏁 *You don't have any active setup session memory to clear.*",
-                ephemeral: true
-            });
+            await interaction.reply({ content: "🏁 *You don't have any active setup session memory to clear.*", ephemeral: true });
         }
     }
 });
@@ -191,6 +190,9 @@ client.on('messageCreate', async (message) => {
     await message.channel.sendTyping();
     const userPrompt = message.content;
 
+    // Log the incoming follow-up query to the admin channel
+    await logToAdminChannel(`💬 **DM Follow-up Received**\n👤 **Driver:** ${user.tag}\n📝 **Message:** "${userPrompt}"`);
+
     try {
         const reply = await generateSetupAdvice(userPrompt, session.history, null);
         updateSessionHistory(user.id, userPrompt, reply);
@@ -204,6 +206,7 @@ client.on('messageCreate', async (message) => {
         await message.channel.send({
             content: "⚠️ *Engineering link dropped. Let's try that adjustment again in a moment.*"
         });
+        await logToAdminChannel(`💥 **DM Adjustment Error:** Failed to process follow-up response for ${user.tag}.`);
     }
 });
 
