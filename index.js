@@ -1,8 +1,12 @@
-const { Client, GatewayIntentBits, Partials, ActivityType } = require('discord.js');
+const { 
+    Client, GatewayIntentBits, Partials, ActivityType, 
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, 
+    ModalBuilder, TextInputBuilder, TextInputStyle 
+} = require('discord.js');
 const http = require('http');
 const { DISCORD_TOKEN, PORT } = require('./config');
 const { generateSetupAdvice } = require('./services/gemini');
-const { getSession, updateSessionHistory, clearSession } = require('./services/session');
+const { getSession, updateSessionHistory, clearSession, logUserFeedback } = require('./services/session');
 const { searchTracks, searchCars } = require('./services/autocomplete');
 
 // 🔧 Hardcoded Production Admin Log Channel ID
@@ -81,8 +85,10 @@ client.once('ready', () => {
     client.user.setActivity('GT7 Telemetry', { type: ActivityType.Watching });
 });
 
-// --- HANDLE INTERACTIONS (SLASH COMMANDS & AUTOCOMPLETE) ---
+// --- HANDLE INTERACTIONS (SLASH COMMANDS, AUTOCOMPLETE, BUTTONS, MODALS) ---
 client.on('interactionCreate', async (interaction) => {
+    
+    // 1. Handle Autocomplete fields
     if (interaction.isAutocomplete()) {
         const { commandName } = interaction;
         if (commandName === 'car-setup') {
@@ -102,6 +108,62 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
 
+    // 2. Handle Feedback Button clicks inside DMs
+    if (interaction.isButton()) {
+        const [action, ratingValue] = interaction.customId.split('_');
+        if (action === 'rate') {
+            // Build the modal window overlay for text notes
+            const modal = new ModalBuilder()
+                .setCustomId(`feedbackModal_${ratingValue}`)
+                .setTitle('Race Engineering Review');
+
+            const feedbackInput = new TextInputBuilder()
+                .setCustomId('feedbackNotes')
+                .setLabel("How did the setup handle? (Optional)")
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder("E.g., Snapped on curbs, great traction out of turn 4, etc.")
+                .setRequired(false)
+                .setMaxLength(500);
+
+            const firstActionRow = new ActionRowBuilder().addComponents(feedbackInput);
+            modal.addComponents(firstActionRow);
+
+            await interaction.showModal(modal);
+        }
+        return;
+    }
+
+    // 3. Handle Text Modal Submissions
+    if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('feedbackModal_')) {
+            const ratingType = interaction.customId.split('_')[1]; // 'up' or 'down'
+            const userNotes = interaction.fields.getTextInputValue('feedbackNotes') || 'No comment added.';
+            const session = getSession(interaction.user.id);
+            const currentCar = session.activeCar || 'Unknown Car';
+
+            // Save feedback directly to local training ledger
+            logUserFeedback(interaction.user.id, interaction.user.tag, currentCar, ratingType, userNotes);
+
+            // Send sanitized status alert to admin logging dashboard
+            const emoji = ratingType === 'up' ? '👍' : '👎';
+            await logToAdminChannel(`📊 **Tuning Feedback Submitted**\n👤 **Driver:** ${interaction.user.tag}\n🏎️ **Car:** ${currentCar}\n🎯 **Rating:** ${emoji}\n📋 *Review notes captured silently in learning engine ledger.*`);
+
+            await interaction.reply({
+                content: "🏁 **Feedback Received:** Thank you! Your notes have been securely compiled into the garage telemetry pool to help refine future tune paths.",
+                ephemeral: true
+            });
+            
+            // Disable original buttons on the message so they can't double-submit
+            try {
+                await interaction.message.edit({ components: [] });
+            } catch (e) {
+                console.error("Failed to clear buttons:", e);
+            }
+        }
+        return;
+    }
+
+    // 4. Handle Slash Commands Execution
     if (!interaction.isChatInputCommand()) return;
     const { commandName, user, member } = interaction;
 
@@ -119,6 +181,7 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'car-setup') {
         const car = interaction.options.getString('car');
         const track = interaction.options.getString('track');
+        const tyres = interaction.options.getString('tyres'); 
         const weather = interaction.options.getString('weather') || 'Standard Dry';
         const drivetrain = interaction.options.getString('drivetrain');
         const frontDownforce = interaction.options.getString('front_downforce');
@@ -127,9 +190,12 @@ client.on('interactionCreate', async (interaction) => {
         const screenshot = interaction.options.getAttachment('screenshot');
 
         await interaction.deferReply({ ephemeral: true });
+        
+        // Cache the car explicitly in the user's local session cache for tracking feedback later
         const session = getSession(user.id);
+        session.activeCar = car; 
 
-        let userPrompt = `Request details:\n- Car: ${car}\n- Track: ${track}\n- Weather/Conditions: ${weather}`;
+        let userPrompt = `Request details:\n- Car: ${car}\n- Track: ${track}\n- Tyres: ${tyres}\n- Weather/Conditions: ${weather}`;
         if (drivetrain) userPrompt += `\n- Drivetrain Layout: ${drivetrain}`;
         if (frontDownforce) userPrompt += `\n- Front Downforce: ${frontDownforce}`;
         if (rearDownforce) userPrompt += `\n- Rear Downforce: ${rearDownforce}`;
@@ -146,8 +212,26 @@ client.on('interactionCreate', async (interaction) => {
             const responseText = `🏁 **YOUR PRIVATE SETUP SHEET:**\n\n${advice}`;
             const chunks = splitMessage(responseText);
 
-            for (const chunk of chunks) {
-                await user.send({ content: chunk });
+            // Send advice text block loops safely
+            for (let i = 0; i < chunks.length; i++) {
+                // If it's the very last text block segment, attach the custom rating UI rows
+                if (i === chunks.length - 1) {
+                    const feedbackRow = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('rate_up')
+                                .setLabel('Good Setup 👍')
+                                .setStyle(ButtonStyle.Success),
+                            new ButtonBuilder()
+                                .setCustomId('rate_down')
+                                .setLabel('Needs Adjustments 👎')
+                                .setStyle(ButtonStyle.Danger)
+                        );
+
+                    await user.send({ content: chunks[i], components: [feedbackRow] });
+                } else {
+                    await user.send({ content: chunks[i] });
+                }
             }
 
             await interaction.editReply({
@@ -195,7 +279,7 @@ client.on('messageCreate', async (message) => {
     const user = message.author;
     const session = getSession(user.id);
 
-    // DM context relies on a valid server-side session, which already checked the role at initialization
+    // DM context relies on a valid server-side session
     if (!session.history || session.history.length === 0) {
         return message.channel.send({
             content: "🏁 *Your active engineering session has expired or has not been initialized yet. Please return to the server channel and use the `/car-setup` command to start a new tuning profile!*"
@@ -213,8 +297,25 @@ client.on('messageCreate', async (message) => {
         updateSessionHistory(user.id, userPrompt, reply);
 
         const chunks = splitMessage(reply);
-        for (const chunk of chunks) {
-            await message.channel.send({ content: chunk });
+        for (let i = 0; i < chunks.length; i++) {
+            // Attach the feedback layout matrix to the final text block response loop inside follow up chats too
+            if (i === chunks.length - 1) {
+                const feedbackRow = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('rate_up')
+                            .setLabel('Good Setup 👍')
+                            .setStyle(ButtonStyle.Success),
+                        new ButtonBuilder()
+                            .setCustomId('rate_down')
+                            .setLabel('Needs Adjustments 👎')
+                            .setStyle(ButtonStyle.Danger)
+                    );
+
+                await message.channel.send({ content: chunks[i], components: [feedbackRow] });
+            } else {
+                await message.channel.send({ content: chunks[i] });
+            }
         }
     } catch (error) {
         console.error("DM Chat Error:", error);
