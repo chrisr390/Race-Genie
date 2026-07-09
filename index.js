@@ -15,12 +15,27 @@ const ADMIN_LOG_CHANNEL_ID = '1522549619538526258';
 // 🔒 Hardcoded Premium Loyalty Role ID
 const LOYALTY_ROLE_ID = '1517792455783874650';
 
-// Simple web server for Render health checks
-http.createServer((req, res) => {
+// Simple web server for Render health checks and keep-awake feedback loop
+const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Race Genie running!\n');
 }).listen(PORT, () => {
     console.log(`Health check server listening on port ${PORT}`);
+    
+    // 🔄 START THE SELF-PINGING FEEDBACK LOOP TO KEEP RENDER AWAKE
+    const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+    if (RENDER_EXTERNAL_URL) {
+        console.log(`Keep-awake loop initialized for URL: ${RENDER_EXTERNAL_URL}`);
+        setInterval(() => {
+            http.get(RENDER_EXTERNAL_URL, (res) => {
+                console.log(`[Keep-Awake] Self-ping successful. Status Code: ${res.statusCode}`);
+            }).on('error', (err) => {
+                console.error('[Keep-Awake] Self-ping link dropped:', err.message);
+            });
+        }, 600000); // 600,000 ms = Exactly 10 minutes
+    } else {
+        console.log('⚠️ Keep-awake loop skipped: RENDER_EXTERNAL_URL environment variable not detected.');
+    }
 });
 
 /**
@@ -186,8 +201,7 @@ client.on('interactionCreate', async (interaction) => {
         const tyres = interaction.options.getString('tyres'); 
         const weather = interaction.options.getString('weather') || 'Standard Dry';
         const drivetrain = interaction.options.getString('drivetrain');
-        const frontDownforce = interaction.options.getString('front_downforce');
-        const rearDownforce = interaction.options.getString('rear_downforce');
+        const downforce = interaction.options.getString('downforce'); // 🏎️ COMBINED DOWNFORCE OPTION
         const regulations = interaction.options.getString('regulations');
         const screenshot = interaction.options.getAttachment('screenshot');
 
@@ -199,8 +213,7 @@ client.on('interactionCreate', async (interaction) => {
 
         let userPrompt = `Request details:\n- Car: ${car}\n- Track: ${track}\n- Tyres: ${tyres}\n- Weather/Conditions: ${weather}`;
         if (drivetrain) userPrompt += `\n- Drivetrain Layout: ${drivetrain}`;
-        if (frontDownforce) userPrompt += `\n- Front Downforce: ${frontDownforce}`;
-        if (rearDownforce) userPrompt += `\n- Rear Downforce: ${rearDownforce}`;
+        if (downforce) userPrompt += `\n- Downforce Levels: ${downforce}`;
         if (regulations) userPrompt += `\n- Regulations: ${regulations}`;
         if (screenshot) userPrompt += `\n- Screenshot attached.`;
 
