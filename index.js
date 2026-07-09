@@ -15,10 +15,6 @@ const ADMIN_LOG_CHANNEL_ID = '1522549619538526258';
 // 🔒 Hardcoded Premium Loyalty Role ID
 const LOYALTY_ROLE_ID = '1517792455783874650';
 
-// Tracks cooldowns: UserID -> Timestamp (10-second buffer)
-const cooldowns = new Map();
-const COOLDOWN_TIME = 10000; 
-
 // Simple web server for Render health checks and keep-awake feedback loop
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -127,14 +123,6 @@ client.on('interactionCreate', async (interaction) => {
     const { commandName, user, member } = interaction;
 
     if (commandName === 'car-setup') {
-        // --- COOLDOWN CHECK ---
-        const lastUsed = cooldowns.get(user.id);
-        if (lastUsed && (Date.now() - lastUsed) < COOLDOWN_TIME) {
-            const remaining = Math.ceil((COOLDOWN_TIME - (Date.now() - lastUsed)) / 1000);
-            return interaction.reply({ content: `🏁 **Overheating:** Please wait ${remaining}s before requesting another setup.`, ephemeral: true });
-        }
-        cooldowns.set(user.id, Date.now());
-
         await interaction.deferReply({ ephemeral: true });
         const car = interaction.options.getString('car');
         const session = getSession(user.id);
