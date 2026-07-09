@@ -51,11 +51,16 @@ function splitMessage(text, maxLength = 2000) {
     return chunks;
 }
 
+// --- RESTORED ADMIN LOGGING HELPER ---
 async function logToAdminChannel(logMessage) {
     try {
         const channel = await client.channels.fetch(ADMIN_LOG_CHANNEL_ID);
-        if (channel && channel.isTextBased()) await channel.send({ content: logMessage });
-    } catch (err) {}
+        if (channel && channel.isTextBased()) {
+            await channel.send({ content: logMessage });
+        }
+    } catch (err) {
+        console.error("Admin log error:", err);
+    }
 }
 
 const client = new Client({
@@ -120,6 +125,9 @@ client.on('interactionCreate', async (interaction) => {
                 await user.send({ content: chunk });
             }
             await interaction.editReply({ content: "🏁 *Check your DMs for the setup sheet.*" });
+            
+            // --- ADDED ADMIN LOG TRIGGER ---
+            await logToAdminChannel(`📋 **Setup Generated:** ${user.tag} | Car: ${car} | Track: ${track} | Tyres: ${tyres}`);
         } catch (e) {
             console.error("Setup generation error:", e);
             await interaction.editReply({ content: "⚠️ *Engineering link dropped. Please try again.*" });
