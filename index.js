@@ -9,6 +9,9 @@ const { generateSetupAdvice } = require('./services/gemini');
 const { getSession, updateSessionHistory, clearSession, logUserFeedback } = require('./services/session');
 const { searchTracks, searchCars } = require('./services/autocomplete');
 
+// 🚀 FORCE DISCORD TO REGISTER THE NEW UNIFIED LAYOUT ON BOOT
+require('./deploy-commands');
+
 // 🔧 Hardcoded Production Admin Log Channel ID
 const ADMIN_LOG_CHANNEL_ID = '1522549619538526258';
 
