@@ -45,14 +45,10 @@ const commands = [
             option.setName('drivetrain')
                 .setDescription('Vehicle layout configuration (e.g., FR, 4WD, MR)')
                 .setRequired(false))
-        .addStringOption(option =>
-            option.setName('front_downforce')
-                .setDescription('Current front downforce level points')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('rear_downforce')
-                .setDescription('Current rear downforce level points')
-                .setRequired(false))
+       .addStringOption(option =>
+    option.setName('downforce')
+        .setDescription('Enter downforce levels (e.g., 3.0 front, 0.8 rear or 300/500)')
+        .setRequired(false))
         .addStringOption(option =>
             option.setName('regulations')
                 .setDescription('Active event target constraints (e.g., 600 PP, 700 PP)')
