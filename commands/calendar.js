@@ -29,12 +29,17 @@ module.exports = {
         .addStringOption(option => 
             option.setName('startdate')
                 .setDescription('Round 1 date in YYYY-MM-DD or DD/MM/YYYY format (e.g., 2026-08-01 or 01/08/2026)')
-                .setRequired(true)),
+                .setRequired(true))
+        .addBooleanOption(option =>
+            option.setName('isspecial')
+                .setDescription('Mark this as a Special Event / One-Off (Forces Green theme)')
+                .setRequired(false)),
 
     async execute(interaction) {
         const seriesName = interaction.options.getString('series');
         const frequency = interaction.options.getString('frequency');
         const startDateInput = interaction.options.getString('startdate');
+        const isSpecial = interaction.options.getBoolean('isspecial') ?? false;
 
         // Helper function to parse user input dates (DD/MM/YYYY or YYYY-MM-DD)
         const parseDate = (str) => {
@@ -48,8 +53,47 @@ module.exports = {
             return new Date(str);
         };
 
+        // Helper function to resolve color, emoji, and tag by day of week or special flag
+        const getThemeForDate = (dateObj, isSpecialEvent) => {
+            if (isSpecialEvent) {
+                return {
+                    color: '#2ECC71', // Green
+                    emoji: '🟩',
+                    tag: 'SPECIAL EVENT'
+                };
+            }
+
+            if (!dateObj || isNaN(dateObj.getTime())) {
+                return { color: '#4CE600', emoji: '🗓️', tag: 'OFFICIAL CALENDAR' };
+            }
+
+            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 1 = Mon, 2 = Tue, etc.
+
+            switch (dayOfWeek) {
+                case 1: // Monday
+                    return {
+                        color: '#3498DB', // Blue
+                        emoji: '🟦',
+                        tag: 'MONDAY SERIES'
+                    };
+                case 2: // Tuesday
+                    return {
+                        color: '#E67E22', // Orange
+                        emoji: '🟧',
+                        tag: 'TUESDAY SERIES'
+                    };
+                default: // Fallback for other days
+                    return {
+                        color: '#2ECC71', // Green
+                        emoji: '🟩',
+                        tag: 'SPECIAL EVENT'
+                    };
+            }
+        };
+
         const startDateObj = parseDate(startDateInput);
         const isValidDate = !isNaN(startDateObj.getTime());
+        const theme = getThemeForDate(startDateObj, isSpecial);
 
         // Step 1: Create Pop-Up Modal for Tracks List
         const modal = new ModalBuilder()
@@ -87,12 +131,12 @@ module.exports = {
             if (frequency === 'Bi-Weekly') dayIncrement = 14;
             if (frequency === 'Monthly') dayIncrement = 28;
 
-            // Step 4: Build Final Embed
+            // Step 4: Build Final Embed with Dynamic Theme Colors
             const calendarEmbed = new EmbedBuilder()
-                .setTitle(`🗓️ ${seriesName.toUpperCase()} CALENDAR`)
-                .setDescription(`🏎️ **Format:** ${frequency}\nAll race times subject to room host announcements in BST.`)
-                .setColor('#4CE600')
-                .setFooter({ text: 'Future Champions Social Club • Official Schedule' });
+                .setTitle(`${theme.emoji} ${seriesName.toUpperCase()} CALENDAR`)
+                .setDescription(`🏎️ **Format:** ${frequency} | **Category:** ${theme.tag}\nAll race times subject to room host announcements in BST.`)
+                .setColor(theme.color)
+                .setFooter({ text: `Future Champions Social Club • ${theme.tag}` });
 
             for (let r = 0; r < roundCount; r++) {
                 let dateDisplay = startDateInput;
@@ -101,7 +145,7 @@ module.exports = {
                     const roundDate = new Date(startDateObj);
                     roundDate.setDate(roundDate.getDate() + (r * dayIncrement));
                     
-                    // Format date nicely (e.g. "Sun, 08 Aug 2026")
+                    // Format date nicely (e.g. "Mon, 10 Aug 2026")
                     dateDisplay = roundDate.toLocaleDateString('en-GB', {
                         weekday: 'short',
                         day: '2-digit',
