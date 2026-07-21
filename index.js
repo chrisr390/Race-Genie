@@ -1,10 +1,10 @@
+const { Client, GatewayIntentBits, Collection, REST, Routes, EmbedBuilder } = require('discord.js');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const express = require('express');
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 
 // ==========================================
-// 1. EXPRESS SERVER (KEEPS UPTIMEROBOT GREEN)
+// 1. EXPRESS WEB SERVER (KEEPS BOT AWAKE)
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -18,22 +18,19 @@ app.listen(PORT, () => {
 });
 
 // ==========================================
-// 2. DISCORD CLIENT INITIALIZATION
+// 2. INITIALIZE DISCORD CLIENT
 // ==========================================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMembers // Required for Welcome & Goodbye events
     ]
 });
 
+// Load Commands Dynamically
 client.commands = new Collection();
 const commands = [];
-
-// ==========================================
-// 3. LOAD COMMANDS FROM THE /commands FOLDER
-// ==========================================
 const commandsPath = path.join(__dirname, 'commands');
 
 if (fs.existsSync(commandsPath)) {
@@ -50,33 +47,9 @@ if (fs.existsSync(commandsPath)) {
 }
 
 // ==========================================
-// 4. REGISTER SLASH COMMANDS ON READY
+// 3. SLASH COMMAND HANDLING
 // ==========================================
-client.once('ready', async () => {
-    console.log(`🤖 Logged in as ${client.user.tag}!`);
-
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-
-    try {
-        console.log('Registering slash commands with Discord...');
-
-        // Global command registration across all servers
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands }
-        );
-
-        console.log('Successfully registered all (/) slash commands!');
-    } catch (error) {
-        console.error('Error registering slash commands:', error);
-    }
-});
-
-// ==========================================
-// 5. HANDLE INTERACTION EXECUTION
-// ==========================================
-client.on('interactionCreate', async (interaction) => {
-    // Only process slash commands here
+client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
@@ -95,6 +68,66 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // ==========================================
-// 6. LOG IN TO DISCORD
+// 4. WELCOME & GOODBYE EVENT LISTENERS
 // ==========================================
+
+// --- WELCOME EVENT ---
+client.on('guildMemberAdd', async (member) => {
+    // Replace with your actual Welcome Channel ID (or set channel name in Discord)
+    const welcomeChannel = member.guild.channels.cache.find(ch => ch.name === 'welcome') 
+        || member.guild.channels.cache.get(process.env.WELCOME_CHANNEL_ID);
+
+    if (!welcomeChannel) return;
+
+    const welcomeEmbed = new EmbedBuilder()
+        .setTitle('🏁 WELCOME TO FUTURE CHAMPIONS SOCIAL CLUB!')
+        .setDescription(`Welcome ${member}, glad to have you with us!\n\nCheck out the server rules and head over to the chat channels to get involved in upcoming race events.`)
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+        .setColor('#4CE600') // Signature Lime Green
+        .setFooter({ text: 'Future Champions Social Club • Clean & Competitive Racing' })
+        .setTimestamp();
+
+    welcomeChannel.send({ content: `Welcome ${member}!`, embeds: [welcomeEmbed] }).catch(console.error);
+});
+
+// --- GOODBYE EVENT ---
+client.on('guildMemberRemove', async (member) => {
+    // Replace with your actual Goodbye Channel ID (or set channel name in Discord)
+    const goodbyeChannel = member.guild.channels.cache.find(ch => ch.name === 'goodbye') 
+        || member.guild.channels.cache.get(process.env.GOODBYE_CHANNEL_ID);
+
+    if (!goodbyeChannel) return;
+
+    const goodbyeEmbed = new EmbedBuilder()
+        .setTitle('👋 MEMBER LEFT')
+        .setDescription(`**${member.user.tag}** has left the server. We wish them all the best on track!`)
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+        .setColor('#FF3333') // Red Accent
+        .setFooter({ text: 'Future Champions Social Club' })
+        .setTimestamp();
+
+    goodbyeChannel.send({ embeds: [goodbyeEmbed] }).catch(console.error);
+});
+
+// ==========================================
+// 5. BOT READY & REGISTER COMMANDS
+// ==========================================
+client.once('ready', async () => {
+    console.log(`🤖 Logged in as ${client.user.tag}!`);
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+    try {
+        console.log('Registering (/) slash commands...');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands }
+        );
+        console.log('Successfully registered all (/) slash commands!');
+    } catch (error) {
+        console.error('Error registering slash commands:', error);
+    }
+});
+
+// Login
 client.login(process.env.DISCORD_TOKEN);
