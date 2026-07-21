@@ -106,27 +106,26 @@ client.on('guildMemberAdd', async (member) => {
 client.on('guildMemberRemove', async (member) => {
     const config = client.goodbyeConfig;
 
-    // Find custom configured channel or fallback to a channel named 'goodbye'
+    // Looks for configured channel, OR automatically finds any channel named 'goodbye'
     const goodbyeChannel = config?.channelId 
         ? member.guild.channels.cache.get(config.channelId)
         : member.guild.channels.cache.find(ch => ch.name === 'goodbye');
 
     if (!goodbyeChannel) return;
 
-    const rawMessage = config?.message || '**{username}** has left the server. We wish them all the best on track!';
+    const rawMessage = config?.message || '**{username}** has pulled into the pits and left the server. We wish them all the best on track! 🏁';
     const formattedMessage = rawMessage.replace(/{username}/g, member.user.username);
 
     const goodbyeEmbed = new EmbedBuilder()
         .setTitle('👋 MEMBER LEFT')
         .setDescription(formattedMessage)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setColor('#FF3333') // Red Accent
+        .setColor('#FF3333')
         .setFooter({ text: 'Future Champions Social Club' })
         .setTimestamp();
 
     goodbyeChannel.send({ embeds: [goodbyeEmbed] }).catch(console.error);
 });
-
 // ==========================================
 // 5. BOT READY & REGISTER COMMANDS
 // ==========================================
