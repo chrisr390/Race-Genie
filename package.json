@@ -1,6 +1,6 @@
 {
   "name": "race-genie",
-  "version": "1.0.0",
+  "version": "1.4.1",
   "description": "Discord Bot for Future Champions Social Club",
   "main": "index.js",
   "scripts": {
