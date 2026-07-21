@@ -19,17 +19,37 @@ module.exports = {
                 .setRequired(true))
         .addStringOption(option => 
             option.setName('frequency')
-                .setDescription('Race frequency (e.g. Weekly, Bi-Weekly, Every Sunday)')
-                .setRequired(true))
+                .setDescription('Select frequency interval')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Weekly (+7 Days)', value: 'Weekly' },
+                    { name: 'Bi-Weekly / Fortnightly (+14 Days)', value: 'Bi-Weekly' },
+                    { name: 'Monthly (+28 Days)', value: 'Monthly' }
+                ))
         .addStringOption(option => 
             option.setName('startdate')
-                .setDescription('Start date for Round 1 (e.g. 8th Feb, 1st March)')
+                .setDescription('Round 1 date in YYYY-MM-DD or DD/MM/YYYY format (e.g., 2026-08-01 or 01/08/2026)')
                 .setRequired(true)),
 
     async execute(interaction) {
         const seriesName = interaction.options.getString('series');
         const frequency = interaction.options.getString('frequency');
-        const startDate = interaction.options.getString('startdate');
+        const startDateInput = interaction.options.getString('startdate');
+
+        // Helper function to parse user input dates (DD/MM/YYYY or YYYY-MM-DD)
+        const parseDate = (str) => {
+            if (str.includes('/')) {
+                const parts = str.split('/');
+                if (parts.length === 3) {
+                    // Convert DD/MM/YYYY to YYYY-MM-DD for Date object
+                    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                }
+            }
+            return new Date(str);
+        };
+
+        const startDateObj = parseDate(startDateInput);
+        const isValidDate = !isNaN(startDateObj.getTime());
 
         // Step 1: Create Pop-Up Modal for Tracks List
         const modal = new ModalBuilder()
@@ -51,7 +71,7 @@ module.exports = {
 
         // Step 3: Handle Modal Submission
         try {
-            const modalSubmit = await interaction.awaitModalSubmit({ time: 300000 }); // 5 minutes
+            const modalSubmit = await interaction.awaitModalSubmit({ time: 300000 });
 
             const rawTracks = modalSubmit.fields.getTextInputValue('tracks_list');
             const tracks = rawTracks.split('\n').map(t => t.trim()).filter(t => t.length > 0);
@@ -62,23 +82,41 @@ module.exports = {
 
             const roundCount = Math.min(tracks.length, 15);
 
+            // Determine day increment based on selected frequency
+            let dayIncrement = 7;
+            if (frequency === 'Bi-Weekly') dayIncrement = 14;
+            if (frequency === 'Monthly') dayIncrement = 28;
+
             // Step 4: Build Final Embed
             const calendarEmbed = new EmbedBuilder()
                 .setTitle(`🗓️ ${seriesName.toUpperCase()} CALENDAR`)
-                .setDescription(`📅 **Season Start Date:** ${startDate}\n⏱️ **Race Frequency:** ${frequency}\nAll times subject to room host announcements in BST.`)
-                .setColor('#4CE600') // FCSC Lime Green Accent
+                .setDescription(`🏎️ **Format:** ${frequency}\nAll race times subject to room host announcements in BST.`)
+                .setColor('#4CE600')
                 .setFooter({ text: 'Future Champions Social Club • Official Schedule' });
 
-            for (let r = 1; r <= roundCount; r++) {
-                const dateLabel = (r === 1) ? `🗓️ **Starts:** ${startDate}` : `📅 **Frequency:** ${frequency}`;
+            for (let r = 0; r < roundCount; r++) {
+                let dateDisplay = startDateInput;
+
+                if (isValidDate) {
+                    const roundDate = new Date(startDateObj);
+                    roundDate.setDate(roundDate.getDate() + (r * dayIncrement));
+                    
+                    // Format date nicely (e.g. "Sun, 08 Aug 2026")
+                    dateDisplay = roundDate.toLocaleDateString('en-GB', {
+                        weekday: 'short',
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                    });
+                }
+
                 calendarEmbed.addFields({
-                    name: `🏁 Round ${r}`,
-                    value: `📍 **Track:** ${tracks[r - 1]}\n${dateLabel}`,
+                    name: `🏁 Round ${r + 1}`,
+                    value: `📍 **Track:** ${tracks[r]}\n📅 **Date:** ${dateDisplay}`,
                     inline: false
                 });
             }
 
-            // Reply directly with the embed in the channel (Publicly visible to all members)
             await modalSubmit.reply({ embeds: [calendarEmbed] });
 
         } catch (err) {
