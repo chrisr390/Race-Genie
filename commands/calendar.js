@@ -20,11 +20,16 @@ module.exports = {
         .addStringOption(option => 
             option.setName('frequency')
                 .setDescription('Race frequency (e.g. Weekly, Bi-Weekly, Every Sunday)')
+                .setRequired(true))
+        .addStringOption(option => 
+            option.setName('startdate')
+                .setDescription('Start date for Round 1 (e.g. 8th Feb, 1st March)')
                 .setRequired(true)),
 
     async execute(interaction) {
         const seriesName = interaction.options.getString('series');
         const frequency = interaction.options.getString('frequency');
+        const startDate = interaction.options.getString('startdate');
 
         // Step 1: Create Pop-Up Modal for Tracks List
         const modal = new ModalBuilder()
@@ -60,14 +65,15 @@ module.exports = {
             // Step 4: Build Final Embed
             const calendarEmbed = new EmbedBuilder()
                 .setTitle(`🗓️ ${seriesName.toUpperCase()} CALENDAR`)
-                .setDescription(`**Race Frequency:** ${frequency}\nAll times subject to room host announcements in BST.`)
+                .setDescription(`📅 **Season Start Date:** ${startDate}\n⏱️ **Race Frequency:** ${frequency}\nAll times subject to room host announcements in BST.`)
                 .setColor('#4CE600') // FCSC Lime Green Accent
                 .setFooter({ text: 'Future Champions Social Club • Official Schedule' });
 
             for (let r = 1; r <= roundCount; r++) {
+                const dateLabel = (r === 1) ? `🗓️ **Starts:** ${startDate}` : `📅 **Frequency:** ${frequency}`;
                 calendarEmbed.addFields({
                     name: `🏁 Round ${r}`,
-                    value: `📍 **Track:** ${tracks[r - 1]}\n📅 **Frequency:** ${frequency}`,
+                    value: `📍 **Track:** ${tracks[r - 1]}\n${dateLabel}`,
                     inline: false
                 });
             }
