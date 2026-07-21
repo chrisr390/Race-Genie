@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ==========================================
-// 1. EXPRESS WEB SERVER (KEEPS BOT AWAKE)
+// 1. EXPRESS WEB SERVER (KEEPS RENDER ALIVE)
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -27,6 +27,10 @@ const client = new Client({
         GatewayIntentBits.GuildMembers // Required for Welcome & Goodbye events
     ]
 });
+
+// In-Memory Storage for Welcome/Goodbye configs
+client.welcomeConfig = null;
+client.goodbyeConfig = null;
 
 // Load Commands Dynamically
 client.commands = new Collection();
@@ -73,17 +77,25 @@ client.on('interactionCreate', async interaction => {
 
 // --- WELCOME EVENT ---
 client.on('guildMemberAdd', async (member) => {
-    // Replace with your actual Welcome Channel ID (or set channel name in Discord)
-    const welcomeChannel = member.guild.channels.cache.find(ch => ch.name === 'welcome') 
-        || member.guild.channels.cache.get(process.env.WELCOME_CHANNEL_ID);
+    const config = client.welcomeConfig;
+    
+    // Find custom configured channel or fallback to a channel named 'welcome'
+    const welcomeChannel = config?.channelId 
+        ? member.guild.channels.cache.get(config.channelId)
+        : member.guild.channels.cache.find(ch => ch.name === 'welcome');
 
     if (!welcomeChannel) return;
 
+    const rawMessage = config?.message || 'Welcome {user} to {server}! Glad to have you with us on track.';
+    const formattedMessage = rawMessage
+        .replace(/{user}/g, member.toString())
+        .replace(/{server}/g, member.guild.name);
+
     const welcomeEmbed = new EmbedBuilder()
         .setTitle('🏁 WELCOME TO FUTURE CHAMPIONS SOCIAL CLUB!')
-        .setDescription(`Welcome ${member}, glad to have you with us!\n\nCheck out the server rules and head over to the chat channels to get involved in upcoming race events.`)
+        .setDescription(formattedMessage)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setColor('#4CE600') // Signature Lime Green
+        .setColor('#4CE600') // FCSC Accent Lime Green
         .setFooter({ text: 'Future Champions Social Club • Clean & Competitive Racing' })
         .setTimestamp();
 
@@ -92,15 +104,21 @@ client.on('guildMemberAdd', async (member) => {
 
 // --- GOODBYE EVENT ---
 client.on('guildMemberRemove', async (member) => {
-    // Replace with your actual Goodbye Channel ID (or set channel name in Discord)
-    const goodbyeChannel = member.guild.channels.cache.find(ch => ch.name === 'goodbye') 
-        || member.guild.channels.cache.get(process.env.GOODBYE_CHANNEL_ID);
+    const config = client.goodbyeConfig;
+
+    // Find custom configured channel or fallback to a channel named 'goodbye'
+    const goodbyeChannel = config?.channelId 
+        ? member.guild.channels.cache.get(config.channelId)
+        : member.guild.channels.cache.find(ch => ch.name === 'goodbye');
 
     if (!goodbyeChannel) return;
 
+    const rawMessage = config?.message || '**{username}** has left the server. We wish them all the best on track!';
+    const formattedMessage = rawMessage.replace(/{username}/g, member.user.username);
+
     const goodbyeEmbed = new EmbedBuilder()
         .setTitle('👋 MEMBER LEFT')
-        .setDescription(`**${member.user.tag}** has left the server. We wish them all the best on track!`)
+        .setDescription(formattedMessage)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .setColor('#FF3333') // Red Accent
         .setFooter({ text: 'Future Champions Social Club' })
