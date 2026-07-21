@@ -46,7 +46,7 @@ module.exports = {
 
         // Step 3: Handle Modal Submission
         try {
-            const modalSubmit = await interaction.awaitModalSubmit({ time: 300000 }); // 5 minutes to complete
+            const modalSubmit = await interaction.awaitModalSubmit({ time: 300000 }); // 5 minutes
 
             const rawTracks = modalSubmit.fields.getTextInputValue('tracks_list');
             const tracks = rawTracks.split('\n').map(t => t.trim()).filter(t => t.length > 0);
@@ -55,10 +55,9 @@ module.exports = {
                 return await modalSubmit.reply({ content: '❌ You must enter at least 1 track.', ephemeral: true });
             }
 
-            // Limit maximum rounds to 15
             const roundCount = Math.min(tracks.length, 15);
 
-            // Step 4: Build and Send Final Embed
+            // Step 4: Build Final Embed
             const calendarEmbed = new EmbedBuilder()
                 .setTitle(`🗓️ ${seriesName.toUpperCase()} CALENDAR`)
                 .setDescription(`**Race Frequency:** ${frequency}\nAll times subject to room host announcements in BST.`)
@@ -73,8 +72,8 @@ module.exports = {
                 });
             }
 
-            await modalSubmit.reply({ content: '✅ Calendar generated and published successfully!', ephemeral: true });
-            await interaction.channel.send({ embeds: [calendarEmbed] });
+            // Reply directly with the embed in the channel (Publicly visible to all members)
+            await modalSubmit.reply({ embeds: [calendarEmbed] });
 
         } catch (err) {
             console.error('Calendar modal submission error or timeout:', err);
