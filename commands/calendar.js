@@ -18,6 +18,10 @@ module.exports = {
                 .setDescription('Name of the Championship / Series (e.g. FCSC TCR Championship)')
                 .setRequired(true))
         .addStringOption(option => 
+            option.setName('racehost')
+                .setDescription('PSN ID / Name of the Lobby / Room Host')
+                .setRequired(true))
+        .addStringOption(option => 
             option.setName('frequency')
                 .setDescription('Select frequency interval')
                 .setRequired(true)
@@ -37,6 +41,7 @@ module.exports = {
 
     async execute(interaction) {
         const seriesName = interaction.options.getString('series');
+        const raceHost = interaction.options.getString('racehost');
         const frequency = interaction.options.getString('frequency');
         const startDateInput = interaction.options.getString('startdate');
         const isSpecial = interaction.options.getBoolean('isspecial') ?? false;
@@ -46,7 +51,6 @@ module.exports = {
             if (str.includes('/')) {
                 const parts = str.split('/');
                 if (parts.length === 3) {
-                    // Convert DD/MM/YYYY to YYYY-MM-DD for Date object
                     return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
                 }
             }
@@ -131,12 +135,12 @@ module.exports = {
             if (frequency === 'Bi-Weekly') dayIncrement = 14;
             if (frequency === 'Monthly') dayIncrement = 28;
 
-            // Step 4: Build Final Embed with Dynamic Theme Colors
+            // Step 4: Build Final Embed
             const calendarEmbed = new EmbedBuilder()
                 .setTitle(`${theme.emoji} ${seriesName.toUpperCase()} CALENDAR`)
-                .setDescription(`🏎️ **Format:** ${frequency} | **Category:** ${theme.tag}\nAll race times subject to room host announcements in BST.`)
+                .setDescription(`🏎️ **Format:** ${frequency} | **Category:** ${theme.tag}\n🎙️ **Room Host:** ${raceHost}\n\n*All race times subject to room host announcements in BST.*`)
                 .setColor(theme.color)
-                .setFooter({ text: `Future Champions Social Club • ${theme.tag}` });
+                .setFooter({ text: `Future Champions Social Club • Host: ${raceHost}` });
 
             for (let r = 0; r < roundCount; r++) {
                 let dateDisplay = startDateInput;
@@ -145,7 +149,6 @@ module.exports = {
                     const roundDate = new Date(startDateObj);
                     roundDate.setDate(roundDate.getDate() + (r * dayIncrement));
                     
-                    // Format date nicely (e.g. "Mon, 10 Aug 2026")
                     dateDisplay = roundDate.toLocaleDateString('en-GB', {
                         weekday: 'short',
                         day: '2-digit',
