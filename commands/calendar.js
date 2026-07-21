@@ -18,18 +18,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageEvents),
 
     async execute(interaction) {
-        // Step 1: Create Series Selector
-        const seriesSelect = new StringSelectMenuBuilder()
-            .setCustomId('cal_series')
-            .setPlaceholder('Select Championship / Series')
-            .addOptions([
-                { label: 'TCR Championship', value: 'TCR Championship', emoji: '🏎️' },
-                { label: 'GT3 Challenge', value: 'GT3 Challenge', emoji: '🏆' },
-                { label: 'MX-5 Cup', value: 'MX-5 Cup', emoji: '🚗' },
-                { label: 'Custom Series', value: 'Custom Series', emoji: '⚙️' },
-            ]);
-
-        // Step 2: Create Rounds Selector
+        // Step 1: Number of Rounds Selector
         const roundsSelect = new StringSelectMenuBuilder()
             .setCustomId('cal_rounds')
             .setPlaceholder('Select Number of Rounds')
@@ -39,7 +28,7 @@ module.exports = {
                 { label: '5 Rounds', value: '5' },
             ]);
 
-        // Step 3: Create Frequency Selector
+        // Step 2: Frequency Selector
         const freqSelect = new StringSelectMenuBuilder()
             .setCustomId('cal_freq')
             .setPlaceholder('Select Race Frequency')
@@ -49,25 +38,23 @@ module.exports = {
                 { label: 'Monthly', value: 'Monthly' },
             ]);
 
-        const row1 = new ActionRowBuilder().addComponents(seriesSelect);
-        const row2 = new ActionRowBuilder().addComponents(roundsSelect);
-        const row3 = new ActionRowBuilder().addComponents(freqSelect);
+        const row1 = new ActionRowBuilder().addComponents(roundsSelect);
+        const row2 = new ActionRowBuilder().addComponents(freqSelect);
 
         const nextBtn = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('cal_next')
-                .setLabel('Next: Input Track Names ➔')
+                .setLabel('Next: Enter Series Details & Tracks ➔')
                 .setStyle(ButtonStyle.Primary)
         );
 
         const response = await interaction.reply({
-            content: '⚙️ **FCSC Dynamic Calendar Generator**\nPlease configure your series settings below:',
-            components: [row1, row2, row3, nextBtn],
+            content: '⚙️ **FCSC Dynamic Calendar Generator**\nSelect the schedule length and frequency below:',
+            components: [row1, row2, nextBtn],
             ephemeral: true
         });
 
-        // Store selected options in memory for this session
-        let selectedSeries = 'TCR Championship';
+        // Default values if unchanged
         let selectedRounds = 3;
         let selectedFreq = 'Weekly';
 
@@ -75,20 +62,30 @@ module.exports = {
 
         collector.on('collect', async (i) => {
             if (i.isStringSelectMenu()) {
-                if (i.customId === 'cal_series') selectedSeries = i.values[0];
                 if (i.customId === 'cal_rounds') selectedRounds = parseInt(i.values[0]);
                 if (i.customId === 'cal_freq') selectedFreq = i.values[0];
                 await i.deferUpdate();
             } else if (i.isButton() && i.customId === 'cal_next') {
-                // Open Modal Form for Tracks
+                // Open Modal Form
                 const modal = new ModalBuilder()
                     .setCustomId('cal_modal')
-                    .setTitle(`Tracks for ${selectedSeries}`);
+                    .setTitle('Series & Track Details');
 
+                // Input 1: Manual Series Name Entry
+                const seriesInput = new TextInputBuilder()
+                    .setCustomId('series_name')
+                    .setLabel('Series / Championship Name')
+                    .setPlaceholder('e.g., FCSC Touring Car Championship')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(new ActionRowBuilder().addComponents(seriesInput));
+
+                // Dynamic Inputs for Each Round's Track
                 for (let r = 1; r <= selectedRounds; r++) {
                     const trackInput = new TextInputBuilder()
                         .setCustomId(`track_r${r}`)
-                        .setLabel(`Round ${r} Track Name & Layout`)
+                        .setLabel(`Round ${r} Track & Layout`)
                         .setPlaceholder(`e.g., Brands Hatch GP`)
                         .setStyle(TextInputStyle.Short)
                         .setRequired(true);
@@ -102,11 +99,13 @@ module.exports = {
                 try {
                     const modalSubmit = await i.awaitModalSubmit({ time: 120000 });
                     
+                    const userSeriesName = modalSubmit.fields.getTextInputValue('series_name');
+
                     const calendarEmbed = new EmbedBuilder()
-                        .setTitle(`🗓️ ${selectedSeries.toUpperCase()} CALENDAR`)
-                        .setDescription(`**Schedule Format:** ${selectedFreq}\nAll race times subject to room host announcements in BST.`)
-                        .setColor('#4CE600')
-                        .setFooter({ text: 'Future Champions Social Club • Dynamic Schedule' });
+                        .setTitle(`🗓️ ${userSeriesName.toUpperCase()} CALENDAR`)
+                        .setDescription(`**Race Frequency:** ${selectedFreq}\nAll times subject to room host announcements in BST.`)
+                        .setColor('#4CE600') // Server Accent Lime Green
+                        .setFooter({ text: 'Future Champions Social Club • Official Schedule' });
 
                     for (let r = 1; r <= selectedRounds; r++) {
                         const trackName = modalSubmit.fields.getTextInputValue(`track_r${r}`);
@@ -118,15 +117,15 @@ module.exports = {
                     }
 
                     await modalSubmit.reply({
-                        content: '✅ Calendar generated and posted!',
+                        content: '✅ Calendar generated and published successfully!',
                         ephemeral: true
                     });
 
-                    // Post to channel
+                    // Post finished embed to channel
                     await interaction.channel.send({ embeds: [calendarEmbed] });
 
                 } catch (err) {
-                    console.log('Modal timeout or error:', err);
+                    console.log('Modal submission timeout or error:', err);
                 }
             }
         });
