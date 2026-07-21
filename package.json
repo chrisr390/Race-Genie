@@ -1,18 +1,13 @@
 {
   "name": "race-genie",
-  "version": "1.4.0",
-  "description": "Trackside AI race engineer for FCSC",
+  "version": "1.0.0",
+  "description": "Discord Bot for Future Champions Social Club",
   "main": "index.js",
   "scripts": {
-    "start": "node deploy-commands.js && node index.js",
-    "deploy-commands": "node deploy-commands.js",
-    "dev": "node --watch --env-file=.env index.js"
-  },
-  "engines": {
-    "node": ">=20.6.0"
+    "start": "node index.js"
   },
   "dependencies": {
-    "@google/genai": "latest",
-    "discord.js": "^14.14.1"
+    "discord.js": "^14.14.1",
+    "express": "^4.18.2"
   }
 }
