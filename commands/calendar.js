@@ -33,18 +33,13 @@ module.exports = {
         .addStringOption(option => 
             option.setName('startdate')
                 .setDescription('Round 1 date in YYYY-MM-DD or DD/MM/YYYY format (e.g., 2026-08-01 or 01/08/2026)')
-                .setRequired(true))
-        .addBooleanOption(option =>
-            option.setName('isspecial')
-                .setDescription('Mark this as a Special Event / One-Off (Forces Green theme)')
-                .setRequired(false)),
+                .setRequired(true)),
 
     async execute(interaction) {
         const seriesName = interaction.options.getString('series');
         const raceHost = interaction.options.getString('racehost');
         const frequency = interaction.options.getString('frequency');
         const startDateInput = interaction.options.getString('startdate');
-        const isSpecial = interaction.options.getBoolean('isspecial') ?? false;
 
         // Helper function to parse user input dates (DD/MM/YYYY or YYYY-MM-DD)
         const parseDate = (str) => {
@@ -57,18 +52,10 @@ module.exports = {
             return new Date(str);
         };
 
-        // Helper function to resolve color, emoji, and tag by day of week or special flag
-        const getThemeForDate = (dateObj, isSpecialEvent) => {
-            if (isSpecialEvent) {
-                return {
-                    color: '#2ECC71', // Green
-                    emoji: '🟩',
-                    tag: 'SPECIAL EVENT'
-                };
-            }
-
+        // Helper function to resolve color, emoji, and tag by day of week
+        const getThemeForDate = (dateObj) => {
             if (!dateObj || isNaN(dateObj.getTime())) {
-                return { color: '#4CE600', emoji: '🗓️', tag: 'OFFICIAL CALENDAR' };
+                return { color: '#2ECC71', emoji: '🟢', tag: 'SPECIAL EVENT' };
             }
 
             const dayOfWeek = dateObj.getDay(); // 0 = Sun, 1 = Mon, 2 = Tue, etc.
@@ -86,7 +73,7 @@ module.exports = {
                         emoji: '🟧',
                         tag: 'TUESDAY SERIES'
                     };
-                default: // Fallback for other days
+                default: // Fallback for all other days (Green for Special Events)
                     return {
                         color: '#2ECC71', // Green
                         emoji: '🟩',
@@ -97,7 +84,7 @@ module.exports = {
 
         const startDateObj = parseDate(startDateInput);
         const isValidDate = !isNaN(startDateObj.getTime());
-        const theme = getThemeForDate(startDateObj, isSpecial);
+        const theme = getThemeForDate(startDateObj);
 
         // Step 1: Create Pop-Up Modal for Tracks List
         const modal = new ModalBuilder()
@@ -140,7 +127,7 @@ module.exports = {
                 .setTitle(`${theme.emoji} ${seriesName.toUpperCase()} CALENDAR`)
                 .setDescription(`🏎️ **Format:** ${frequency} | **Category:** ${theme.tag}\n🎙️ **Room Host:** ${raceHost}\n\n*All race times subject to room host announcements in BST.*`)
                 .setColor(theme.color)
-                .setFooter({ text: `Future Champions Social Club • Host: ${raceHost}` });
+                .setFooter({ text: `Future Champions Social Club • Host: ${RaceHost}` });
 
             for (let r = 0; r < roundCount; r++) {
                 let dateDisplay = startDateInput;
