@@ -51,22 +51,64 @@ if (fs.existsSync(commandsPath)) {
 }
 
 // ==========================================
-// 3. SLASH COMMAND HANDLING
+// 3. INTERACTION HANDLING (SLASH COMMANDS & MODALS)
 // ==========================================
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
 
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+    // --- HANDLE SLASH COMMANDS ---
+    if (interaction.isChatInputCommand()) {
+        const command = client.commands.get(interaction.commandName);
+        if (!command) return;
 
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        console.error(`Error executing /${interaction.commandName}:`, error);
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
-        } else {
-            await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+        try {
+            await command.execute(interaction);
+        } catch (error) {
+            console.error(`Error executing /${interaction.commandName}:`, error);
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
+            } else {
+                await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+            }
+        }
+        return;
+    }
+
+    // --- HANDLE STEWARD REPORT MODAL SUBMISSION ---
+    if (interaction.isModalSubmit() && interaction.customId === 'steward_report_modal') {
+        try {
+            const raceInfo = interaction.fields.getTextInputValue('incident_race');
+            const driversInvolved = interaction.fields.getTextInputValue('incident_drivers');
+            const incidentDesc = interaction.fields.getTextInputValue('incident_desc');
+
+            // Find steward channel by name
+            const stewardChannel = interaction.guild.channels.cache.find(ch => ch.name === 'steward-review')
+                || interaction.guild.channels.cache.find(ch => ch.name === 'stewards');
+
+            const reportEmbed = new EmbedBuilder()
+                .setTitle('🚨 NEW INCIDENT REPORT')
+                .setDescription(`Submitted by ${interaction.user}`)
+                .addFields(
+                    { name: '🏁 Event & Lap', value: raceInfo, inline: false },
+                    { name: '🏎️ Drivers Involved', value: driversInvolved, inline: false },
+                    { name: '📝 Description & Replay Stamp', value: incidentDesc, inline: false }
+                )
+                .setColor('#FFCC00') // Warning Amber
+                .setFooter({ text: 'Future Champions Social Club • Steward Panel' })
+                .setTimestamp();
+
+            if (stewardChannel) {
+                await stewardChannel.send({ embeds: [reportEmbed] });
+                await interaction.reply({ content: '✅ Your report has been submitted confidentially to the stewards.', ephemeral: true });
+            } else {
+                await interaction.reply({ 
+                    content: '✅ Incident report submitted! *(Note: Create a `#steward-review` channel for automated logging).*', 
+                    embeds: [reportEmbed], 
+                    ephemeral: true 
+                });
+            }
+        } catch (error) {
+            console.error('Error handling steward modal submission:', error);
+            await interaction.reply({ content: '❌ Error processing your incident report.', ephemeral: true });
         }
     }
 });
@@ -95,7 +137,7 @@ client.on('guildMemberAdd', async (member) => {
         .setTitle('🏁 WELCOME TO FUTURE CHAMPIONS SOCIAL CLUB!')
         .setDescription(formattedMessage)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setColor('#4CE600') // FCSC Accent Lime Green
+        .setColor('#4CE600') // FCSC Signature Lime Green
         .setFooter({ text: 'Future Champions Social Club • Clean & Competitive Racing' })
         .setTimestamp();
 
@@ -106,7 +148,7 @@ client.on('guildMemberAdd', async (member) => {
 client.on('guildMemberRemove', async (member) => {
     const config = client.goodbyeConfig;
 
-    // Looks for configured channel, OR automatically finds any channel named 'goodbye'
+    // Find custom configured channel or fallback to a channel named 'goodbye'
     const goodbyeChannel = config?.channelId 
         ? member.guild.channels.cache.get(config.channelId)
         : member.guild.channels.cache.find(ch => ch.name === 'goodbye');
@@ -120,12 +162,13 @@ client.on('guildMemberRemove', async (member) => {
         .setTitle('👋 MEMBER LEFT')
         .setDescription(formattedMessage)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setColor('#FF3333')
+        .setColor('#FF3333') // Red Accent
         .setFooter({ text: 'Future Champions Social Club' })
         .setTimestamp();
 
     goodbyeChannel.send({ embeds: [goodbyeEmbed] }).catch(console.error);
 });
+
 // ==========================================
 // 5. BOT READY & REGISTER COMMANDS
 // ==========================================
