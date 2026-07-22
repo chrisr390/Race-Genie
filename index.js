@@ -1,152 +1,79 @@
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
-const { generateDependencyReport } = require('@discordjs/voice'); // 👈 ADD THIS IMPORT
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const express = require('express');
 
-// ... rest of your index.js ...
-
-client.once('ready', async () => {
-    console.log(`🤖 Logged in as ${client.user.tag}!`);
-    console.log('🎙️ VOICE DEPENDENCY REPORT:\n' + generateDependencyReport()); // 👈 PRINTS AUDIO HEALTH
-    client.user.setActivity('GT7 | Future Champions', { type: 0 });
-    await registerCommands();
-});
-
-
-// ==========================================
-// 1. KEEP-ALIVE SERVER (FOR RENDER & CRON)
-// ==========================================
+// 1. Initialize Express web server for Render keep-alive
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Race Genie is online!'));
+app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
 
-app.get('/', (req, res) => {
-    res.send('🏎️ Race Genie is live and operational!');
-});
-
-app.get('/ping', (req, res) => {
-    res.status(200).send('PONG');
-});
-
-app.listen(PORT, () => {
-    console.log(`🌐 Keep-alive server running on port ${PORT}`);
-});
-
-// ==========================================
-// 2. INITIALIZE DISCORD CLIENT
-// ==========================================
+// 2. Initialize Discord Client FIRST
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates // Required for Voice Channels & Commentator
+        GatewayIntentBits.MessageContent
     ]
 });
 
 client.commands = new Collection();
-const commandsData = [];
 
-// ==========================================
-// 3. LOAD SLASH COMMANDS FROM /commands
-// ==========================================
+// 3. Load Command Files
 const commandsPath = path.join(__dirname, 'commands');
-
 if (fs.existsSync(commandsPath)) {
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
-        try {
-            const command = require(filePath);
-            if ('data' in command && 'execute' in command) {
-                client.commands.set(command.data.name, command);
-                commandsData.push(command.data.toJSON());
-                console.log(`✅ Loaded command: ${command.data.name}`);
-            } else {
-                console.log(`⚠️ Warning: ${file} is missing required "data" or "execute" properties.`);
-            }
-        } catch (err) {
-            console.error(`❌ Error loading command file ${file}:`, err);
+        const command = require(filePath);
+        if ('data' in command && 'execute' in command) {
+            client.commands.set(command.data.name, command);
         }
     }
-} else {
-    console.warn(`⚠️ Commands directory not found at: ${commandsPath}`);
 }
 
-// ==========================================
-// 4. AUTOMATIC INSTANT GUILD COMMAND DEPLOY
-// ==========================================
+// 4. Function to Register Slash Commands
 async function registerCommands() {
-    const token = process.env.DISCORD_TOKEN;
-    const clientId = process.env.CLIENT_ID;
-
-    if (!token || !clientId) {
-        console.error('❌ DISCORD_TOKEN or CLIENT_ID environment variables are missing!');
-        return;
-    }
-
-    const rest = new REST({ version: '10' }).setToken(token);
-
     try {
-        // Automatically fetch joined servers to register instant guild commands
-        const guilds = client.guilds.cache;
-
-        if (guilds.size > 0) {
-            for (const [guildId, guild] of guilds) {
-                console.log(`⚡ Deploying ${commandsData.length} slash commands INSTANTLY to Guild: ${guild.name} (${guildId})...`);
-                await rest.put(
-                    Routes.applicationGuildCommands(clientId, guildId),
-                    { body: commandsData }
-                );
-            }
-            console.log('✅ Guild slash commands registered INSTANTLY!');
-        } else {
-            console.log(`🚀 No guilds cached yet, registering ${commandsData.length} commands globally...`);
-            await rest.put(
-                Routes.applicationCommands(clientId),
-                { body: commandsData }
-            );
-        }
+        const commands = Array.from(client.commands.values()).map(c => c.data.toJSON());
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        console.log('🔄 Registering slash commands...');
+        await rest.put(
+            Routes.applicationCommands(process.env.CLIENT_ID),
+            { body: commands }
+        );
+        console.log('✅ Slash commands registered successfully!');
     } catch (error) {
-        console.error('❌ Failed to register slash commands:', error);
+        console.error('❌ Error registering commands:', error);
     }
 }
 
-// ==========================================
-// 5. EVENT LISTENERS
-// ==========================================
+// 5. Ready Event Listener
 client.once('ready', async () => {
     console.log(`🤖 Logged in as ${client.user.tag}!`);
     client.user.setActivity('GT7 | Future Champions', { type: 0 });
     await registerCommands();
 });
 
+// 6. Interaction Event Listener
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
-
     const command = client.commands.get(interaction.commandName);
-
-    if (!command) {
-        console.error(`❌ No command matching ${interaction.commandName} was found.`);
-        return;
-    }
+    if (!command) return;
 
     try {
         await command.execute(interaction);
     } catch (error) {
         console.error(`❌ Error executing ${interaction.commandName}:`, error);
-        
-        const errorMessage = { content: '❌ An error occurred while executing this command!', ephemeral: true };
         if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorMessage);
+            await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
         } else {
-            await interaction.reply(errorMessage);
+            await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
         }
     }
 });
 
-// ==========================================
-// 6. LOGIN
-// ==========================================
+// 7. Login
 client.login(process.env.DISCORD_TOKEN);
