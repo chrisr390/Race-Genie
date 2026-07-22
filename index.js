@@ -1,83 +1,70 @@
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
-const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const sodium = require('libsodium-wrappers'); // Required for Discord WebRTC voice encryption
 
-// ==========================================
-// 1. EXPRESS WEB SERVER (Render Keep-Alive)
-// ==========================================
-const app = express();
-const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Race Genie is online and operational!'));
-app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
-
-// ==========================================
-// 2. DISCORD CLIENT INITIALIZATION
-// ==========================================
+// 1. Initialize Discord Client with necessary gateway intents (Guilds & Voice States)
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+    ],
 });
 
+// 2. Setup Commands Collection
 client.commands = new Collection();
-
-// ==========================================
-// 3. LOAD COMMAND FILES
-// ==========================================
 const commandsPath = path.join(__dirname, 'commands');
-if (fs.existsSync(commandsPath)) {
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-            console.log(`📦 Loaded command: ${command.data.name}`);
-        } else {
-            console.warn(`⚠️ The command at ${filePath} is missing required "data" or "execute" property.`);
-        }
+
+// Check if commands directory exists, if not create it
+if (!fs.existsSync(commandsPath)) {
+    fs.mkdirSync(commandsPath, { recursive: true });
+}
+
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const commandArray = [];
+
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+        commandArray.push(command.data.toJSON());
+        console.log(`📦 Loaded command: /${command.data.name}`);
+    } else {
+        console.log(`⚠️ The command at ${filePath} is missing a required "data" or "execute" property.`);
     }
 }
 
-// ==========================================
-// 4. SLASH COMMAND REGISTRATION
-// ==========================================
-async function registerCommands() {
-    try {
-        const commands = Array.from(client.commands.values()).map(c => c.data.toJSON());
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        
-        console.log('🔄 Overwriting and re-registering slash commands with Discord API...');
-        await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
-            { body: commands }
-        );
-        console.log('✅ Slash commands registered successfully!');
-    } catch (error) {
-        console.error('❌ Error registering slash commands:', error);
-    }
-}
-
-// ==========================================
-// 5. CLIENT READY EVENT
-// ==========================================
+// 3. Client Ready Event & Slash Command Registration
 client.once('ready', async () => {
-    // Wait for voice encryption library to complete initialization
-    await sodium.ready;
-    console.log(`🤖 Logged in as ${client.user.tag}! Audio encryption (sodium) initialized.`);
-    
-    client.user.setActivity('GT7 | Future Champions', { type: 0 });
-    await registerCommands();
+    console.log(`🤖 Logged in successfully as ${client.user.tag}!`);
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+    try {
+        console.log('🔄 Started refreshing application (/) commands.');
+
+        // Register commands globally (or locally if GUILD_ID is specified)
+        if (process.env.CLIENT_ID) {
+            if (process.env.GUILD_ID) {
+                await rest.put(
+                    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+                    { body: commandArray },
+                );
+                console.log('✨ Successfully reloaded guild-specific application commands.');
+            } else {
+                await rest.put(
+                    Routes.applicationCommands(process.env.CLIENT_ID),
+                    { body: commandArray },
+                );
+                console.log('✨ Successfully reloaded global application commands.');
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error refreshing commands:', error);
+    }
 });
 
-// ==========================================
-// 6. INTERACTION COMMAND HANDLER
-// ==========================================
+// 4. Interaction Create Listener (Handles all slash commands safely)
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -92,16 +79,15 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         console.error(`❌ Error executing ${interaction.commandName}:`, error);
         
-        const errorMsg = { content: '❌ There was an error executing this command!', ephemeral: true };
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorMsg);
+        const errorMessage = { content: '❌ There was an error while executing this command!', ephemeral: true };
+        
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(errorMessage).catch(() => {});
         } else {
-            await interaction.reply(errorMsg);
+            await interaction.reply(errorMessage).catch(() => {});
         }
     }
 });
 
-// ==========================================
-// 7. BOT LOGIN
-// ==========================================
+// 5. Log in to Discord using your bot token from environment variables
 client.login(process.env.DISCORD_TOKEN);
