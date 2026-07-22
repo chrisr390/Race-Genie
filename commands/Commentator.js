@@ -50,12 +50,12 @@ async function playNextInQueue(connection) {
                 url: `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,
                 headers: {
                     'Accept': 'audio/mpeg',
-                    'xi-api-key': apiKey,
+                    'xi-api-key': apiKey.trim(),
                     'Content-Type': 'application/json',
                 },
                 data: {
                     text: textToSpeak,
-                    model_id: 'eleven_monolingual_v1',
+                    model_id: 'eleven_turbo_v2_5',
                     voice_settings: {
                         stability: 0.5,
                         similarity_boost: 0.75,
@@ -79,7 +79,11 @@ async function playNextInQueue(connection) {
         player.play(resource);
         connection.subscribe(player);
     } catch (err) {
-        console.error('❌ Primary Voice Error, falling back to Google TTS:', err.message);
+        if (err.response) {
+            console.error('❌ ElevenLabs API Error Details:', err.response.data);
+        } else {
+            console.error('❌ Primary Voice Error, falling back to Google TTS:', err.message);
+        }
         
         try {
             const fallbackUrl = googleTTS.getAudioUrl(textToSpeak, { lang: 'en-GB', slow: false });
@@ -134,7 +138,7 @@ async function queueSpeech(text, interaction) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('commentator')
-        .setDescription('Future Champions Live Voice Announcer v2') // Updated description forces cache refresh
+        .setDescription('Future Champions Live Voice Announcer v3')
 
         // --- CONNECT / DISCONNECT ---
         .addSubcommand(sub => sub.setName('join').setDescription('Connect commentator to your voice channel'))
