@@ -1,10 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection } = require('@discordjs/voice');
 const googleTTS = require('google-tts-api');
 const { Readable } = require('stream');
-const ffmpeg = require('ffmpeg-static');
-
-process.env.FFMPEG_PATH = ffmpeg;
 
 const ELEVENLABS_VOICE_ID = 'lcMyyd2HUfFzxdCaC4Ta';
 
@@ -71,11 +68,8 @@ async function playNextInQueue(connection) {
             const buffer = Buffer.from(arrayBuffer);
             const stream = Readable.from(buffer);
 
-            resource = createAudioResource(stream, { 
-                inputType: StreamType.Arbitrary,
-                inlineVolume: true 
-            });
-            resource.volume.setVolume(1.5);
+            // Direct stream resource initialization without external dependency bottlenecks
+            resource = createAudioResource(stream);
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
             const url = googleTTS.getAudioUrl(textToSpeak, {
@@ -84,12 +78,12 @@ async function playNextInQueue(connection) {
                 host: 'https://translate.google.com',
                 timeout: 10000,
             });
-            resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
+            resource = createAudioResource(url);
         }
 
         connection.subscribe(player);
         player.play(resource);
-        console.log('▶️ Audio resource playing successfully!');
+        console.log('▶️ Audio playing successfully in voice channel!');
 
     } catch (err) {
         console.error('❌ Primary Voice Error:', err.message);
@@ -97,7 +91,7 @@ async function playNextInQueue(connection) {
         
         try {
             const fallbackUrl = googleTTS.getAudioUrl(textToSpeak, { lang: 'en-GB', slow: false });
-            const resource = createAudioResource(fallbackUrl, { inputType: StreamType.Arbitrary });
+            const resource = createAudioResource(fallbackUrl);
             connection.subscribe(player);
             player.play(resource);
         } catch (fallbackErr) {
