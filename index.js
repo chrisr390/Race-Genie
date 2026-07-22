@@ -52,7 +52,7 @@ async function registerCommands() {
         const commands = Array.from(client.commands.values()).map(c => c.data.toJSON());
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         
-        console.log('🔄 Registering slash commands with Discord API...');
+        console.log('🔄 Overwriting and re-registering slash commands with Discord API...');
         await rest.put(
             Routes.applicationCommands(process.env.CLIENT_ID),
             { body: commands }
