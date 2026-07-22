@@ -1,8 +1,21 @@
+const http = require('http');
+
+// 1. Instantly bind to Render's required port to satisfy the port scanner
+const PORT = process.env.PORT || 10000;
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is active and running!\n');
+});
+
+server.listen(PORT, () => {
+    console.log(`🌐 Health check server successfully listening on port ${PORT}`);
+});
+
+// 2. Load Discord and bot modules
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-// 1. Initialize Discord Client with necessary gateway intents (Guilds & Voice States)
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -10,11 +23,9 @@ const client = new Client({
     ],
 });
 
-// 2. Setup Commands Collection
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 
-// Check if commands directory exists, if not create it
 if (!fs.existsSync(commandsPath)) {
     fs.mkdirSync(commandsPath, { recursive: true });
 }
@@ -34,7 +45,6 @@ for (const file of commandFiles) {
     }
 }
 
-// 3. Client Ready Event & Slash Command Registration
 client.once('ready', async () => {
     console.log(`🤖 Logged in successfully as ${client.user.tag}!`);
 
@@ -43,7 +53,6 @@ client.once('ready', async () => {
     try {
         console.log('🔄 Started refreshing application (/) commands.');
 
-        // Register commands globally (or locally if GUILD_ID is specified)
         if (process.env.CLIENT_ID) {
             if (process.env.GUILD_ID) {
                 await rest.put(
@@ -64,7 +73,6 @@ client.once('ready', async () => {
     }
 });
 
-// 4. Interaction Create Listener (Handles all slash commands safely)
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -87,19 +95,6 @@ client.on('interactionCreate', async interaction => {
             await interaction.reply(errorMessage).catch(() => {});
         }
     }
-});
-
-// 5. Log in to Discord using your bot token from environment variables
-
-const http = require('http');
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is active and running!\n');
-});
-
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-    console.log(`🌐 Health check server listening on port ${PORT}`);
 });
 
 client.login(process.env.DISCORD_TOKEN);
