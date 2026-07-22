@@ -90,4 +90,16 @@ client.on('interactionCreate', async interaction => {
 });
 
 // 5. Log in to Discord using your bot token from environment variables
+
+const http = require('http');
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is active and running!\n');
+});
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+    console.log(`🌐 Health check server listening on port ${PORT}`);
+});
+
 client.login(process.env.DISCORD_TOKEN);
