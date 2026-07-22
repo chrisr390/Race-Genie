@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection, StreamType, entersState } = require('@discordjs/voice');
 const googleTTS = require('google-tts-api');
 const axios = require('axios');
 
@@ -11,6 +11,22 @@ const ELEVENLABS_VOICE_ID = 'lcMyyd2HUfFzxdCaC4Ta';
 let audioQueue = [];
 let isPlaying = false;
 const player = createAudioPlayer();
+
+// Catch player errors in Render logs
+player.on('error', error => {
+    console.error('❌ Audio Player Error:', error.message, error);
+    isPlaying = false;
+    const connection = getVoiceConnection();
+    if (connection) playNextInQueue(connection);
+});
+
+player.on(AudioPlayerStatus.Idle, () => {
+    isPlaying = false;
+    const connection = getVoiceConnection();
+    if (connection) {
+        playNextInQueue(connection);
+    }
+});
 
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -28,7 +44,7 @@ async function playNextInQueue(connection) {
         let resource;
 
         if (apiKey) {
-            // 🌟 ELEVENLABS HIGH-QUALITY AUDIO STREAM
+            console.log(`🎙️ Generating ElevenLabs TTS for: "${textToSpeak}"`);
             const response = await axios({
                 method: 'post',
                 url: `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}/stream`,
@@ -50,7 +66,7 @@ async function playNextInQueue(connection) {
 
             resource = createAudioResource(response.data, { inputType: StreamType.Arbitrary });
         } else {
-            // 🔄 GOOGLE TTS FALLBACK
+            console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
             const url = googleTTS.getAudioUrl(textToSpeak, {
                 lang: 'en-GB',
                 slow: false,
@@ -63,7 +79,7 @@ async function playNextInQueue(connection) {
         player.play(resource);
         connection.subscribe(player);
     } catch (err) {
-        console.error('❌ ElevenLabs Error, falling back to Google TTS:', err.message);
+        console.error('❌ Primary Voice Error, falling back to Google TTS:', err.message);
         
         try {
             const fallbackUrl = googleTTS.getAudioUrl(textToSpeak, { lang: 'en-GB', slow: false });
@@ -78,15 +94,7 @@ async function playNextInQueue(connection) {
     }
 }
 
-player.on(AudioPlayerStatus.Idle, () => {
-    isPlaying = false;
-    const connection = getVoiceConnection();
-    if (connection) {
-        playNextInQueue(connection);
-    }
-});
-
-function queueSpeech(text, interaction) {
+async function queueSpeech(text, interaction) {
     const channel = interaction.member.voice.channel;
     if (!channel) {
         return interaction.reply({ content: '❌ You must join a voice channel first!', ephemeral: true });
@@ -100,6 +108,17 @@ function queueSpeech(text, interaction) {
             guildId: interaction.guild.id,
             adapterCreator: interaction.guild.voiceAdapterCreator,
             selfDeaf: false,
+        });
+
+        connection.on(VoiceConnectionStatus.Disconnected, async () => {
+            try {
+                await Promise.race([
+                    entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+                    entersState(connection, VoiceConnectionStatus.Connecting, 5000),
+                ]);
+            } catch (e) {
+                connection.destroy();
+            }
         });
     }
 
@@ -137,13 +156,12 @@ module.exports = {
                 .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap P2 to P3 (e.g. 0.8 seconds)').setRequired(false))
         )
 
-        // --- ⚠️ PENALTY ANNOUNCEMENT ---
         .addSubcommand(sub =>
             sub.setName('penalty')
                 .setDescription('Broadcast a driver penalty in voice channel')
                 .addStringOption(opt => opt.setName('driver').setDescription('Driver Name').setRequired(true))
-                .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner (e.g. Turn 7, the chicane)').setRequired(false))
-                .addStringOption(opt => opt.setName('reason').setDescription('Reason (e.g. track limits, collision)').setRequired(false))
+                .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner (e.g. Turn 7)').setRequired(false))
+                .addStringOption(opt => opt.setName('reason').setDescription('Reason (e.g. track limits)').setRequired(false))
         )
 
         .addSubcommand(sub =>
@@ -161,7 +179,7 @@ module.exports = {
             const channel = interaction.member.voice.channel;
             if (!channel) return interaction.reply({ content: '❌ Join a voice channel first!', ephemeral: true });
 
-            joinVoiceChannel({
+            const connection = joinVoiceChannel({
                 channelId: channel.id,
                 guildId: interaction.guild.id,
                 adapterCreator: interaction.guild.voiceAdapterCreator,
@@ -222,9 +240,6 @@ module.exports = {
             return queueSpeech(speech, interaction);
         }
 
-        // ==========================================
-        // 🎙️ PENALTY SCRIPT
-        // ==========================================
         if (subcommand === 'penalty') {
             const driver = interaction.options.getString('driver');
             const location = interaction.options.getString('location') || 'turn 7';
