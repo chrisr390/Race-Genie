@@ -4,13 +4,8 @@ const googleTTS = require('google-tts-api');
 const { Readable } = require('stream');
 const ffmpeg = require('ffmpeg-static');
 
-// Force prism-media to use static FFmpeg binary for MP3 -> PCM transcoding
 process.env.FFMPEG_PATH = ffmpeg;
 
-// ==========================================
-// 🎙️ ELEVENLABS VOICE CONFIGURATION
-// ==========================================
-// Lucy (Fresh & Casual)
 const ELEVENLABS_VOICE_ID = 'lcMyyd2HUfFzxdCaC4Ta';
 
 let audioQueue = [];
@@ -76,12 +71,11 @@ async function playNextInQueue(connection) {
             const buffer = Buffer.from(arrayBuffer);
             const stream = Readable.from(buffer);
 
-            // Force StreamType.Arbitrary with explicit FFmpeg decoding parameters for cloud stability
             resource = createAudioResource(stream, { 
                 inputType: StreamType.Arbitrary,
                 inlineVolume: true 
             });
-            resource.volume.setVolume(1.5); // Boost volume slightly to ensure clear playback
+            resource.volume.setVolume(1.5);
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
             const url = googleTTS.getAudioUrl(textToSpeak, {
@@ -144,12 +138,8 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('commentator')
         .setDescription('Future Champions Live Voice Announcer v3')
-
-        // --- CONNECT / DISCONNECT ---
         .addSubcommand(sub => sub.setName('join').setDescription('Connect commentator to your voice channel'))
         .addSubcommand(sub => sub.setName('leave').setDescription('Disconnect commentator from voice channel'))
-
-        // --- 1. WELCOME ---
         .addSubcommand(sub =>
             sub.setName('welcome')
                 .setDescription('Broadcast session welcome message in voice channel')
@@ -164,8 +154,6 @@ module.exports = {
                 )
                 .addStringOption(opt => opt.setName('laps').setDescription('Duration or Laps').setRequired(false))
         )
-
-        // --- 2. GAPS CALLOUT ---
         .addSubcommand(sub =>
             sub.setName('gaps')
                 .setDescription('Broadcast live leader and driver gaps in voice channel')
@@ -175,8 +163,6 @@ module.exports = {
                 .addStringOption(opt => opt.setName('third').setDescription('P3 Driver Name').setRequired(false))
                 .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap P2 to P3').setRequired(false))
         )
-
-        // --- 3. PENALTY ANNOUNCEMENT ---
         .addSubcommand(sub =>
             sub.setName('penalty')
                 .setDescription('Broadcast a driver penalty in voice channel')
@@ -184,8 +170,6 @@ module.exports = {
                 .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner').setRequired(false))
                 .addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(false))
         )
-
-        // --- 4. INCIDENT / COLLISION ---
         .addSubcommand(sub =>
             sub.setName('incident')
                 .setDescription('Broadcast an on-track crash, contact, or incident')
@@ -193,8 +177,6 @@ module.exports = {
                 .addStringOption(opt => opt.setName('driver2').setDescription('Second Driver Involved (if applicable)').setRequired(false))
                 .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner').setRequired(false))
         )
-
-        // --- 5. FINISH & PODIUM ---
         .addSubcommand(sub =>
             sub.setName('finish')
                 .setDescription('Broadcast checkered flag and podium in voice')
@@ -202,8 +184,6 @@ module.exports = {
                 .addStringOption(opt => opt.setName('second').setDescription('Second Place (P2)').setRequired(false))
                 .addStringOption(opt => opt.setName('third').setDescription('Third Place (P3)').setRequired(false))
         )
-
-        // --- 6. CHAT LAP GAP CARD ---
         .addSubcommand(sub =>
             sub.setName('lap-gap')
                 .setDescription('Post lap positions and gaps as a text card in chat')
@@ -216,7 +196,9 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply({ ephemeral: true });
+        }
 
         const subcommand = interaction.options.getSubcommand();
 
