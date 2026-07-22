@@ -4,7 +4,7 @@ const path = require('path');
 const express = require('express');
 
 // ==========================================
-// 1. KEEP-ALIVE SERVER (FOR RENDER & PINGING)
+// 1. KEEP-ALIVE SERVER (FOR RENDER & CRON)
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,7 +13,6 @@ app.get('/', (req, res) => {
     res.send('🏎️ Race Genie is live and operational!');
 });
 
-// Endpoint for external keep-awake pings
 app.get('/ping', (req, res) => {
     res.status(200).send('PONG');
 });
@@ -30,7 +29,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates // Required for Voice Channels & /commentator
+        GatewayIntentBits.GuildVoiceStates // Required for Voice Channels & Commentator
     ]
 });
 
@@ -65,7 +64,7 @@ if (fs.existsSync(commandsPath)) {
 }
 
 // ==========================================
-// 4. REGISTER SLASH COMMANDS WITH DISCORD
+// 4. AUTOMATIC INSTANT GUILD COMMAND DEPLOY
 // ==========================================
 async function registerCommands() {
     const token = process.env.DISCORD_TOKEN;
@@ -79,12 +78,25 @@ async function registerCommands() {
     const rest = new REST({ version: '10' }).setToken(token);
 
     try {
-        console.log(`🚀 Registering ${commandsData.length} slash commands with Discord...`);
-        await rest.put(
-            Routes.applicationCommands(clientId),
-            { body: commandsData }
-        );
-        console.log('✅ Application slash commands registered successfully!');
+        // Automatically fetch joined servers to register instant guild commands
+        const guilds = client.guilds.cache;
+
+        if (guilds.size > 0) {
+            for (const [guildId, guild] of guilds) {
+                console.log(`⚡ Deploying ${commandsData.length} slash commands INSTANTLY to Guild: ${guild.name} (${guildId})...`);
+                await rest.put(
+                    Routes.applicationGuildCommands(clientId, guildId),
+                    { body: commandsData }
+                );
+            }
+            console.log('✅ Guild slash commands registered INSTANTLY!');
+        } else {
+            console.log(`🚀 No guilds cached yet, registering ${commandsData.length} commands globally...`);
+            await rest.put(
+                Routes.applicationCommands(clientId),
+                { body: commandsData }
+            );
+        }
     } catch (error) {
         console.error('❌ Failed to register slash commands:', error);
     }
@@ -99,7 +111,6 @@ client.once('ready', async () => {
     await registerCommands();
 });
 
-// Handle Slash Command Interactions
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
