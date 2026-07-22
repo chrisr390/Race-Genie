@@ -7,7 +7,6 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@discordjs/opus": "^0.9.0",
     "@discordjs/voice": "^0.17.0",
     "axios": "^1.6.8",
     "discord.js": "^14.14.1",
@@ -17,5 +16,8 @@
     "libsodium-wrappers": "^0.7.15",
     "opusscript": "^0.0.8",
     "prism-media": "^1.3.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
