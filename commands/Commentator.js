@@ -68,7 +68,6 @@ async function playNextInQueue(connection) {
             const buffer = Buffer.from(arrayBuffer);
             const stream = Readable.from(buffer);
 
-            // Direct stream resource initialization without external dependency bottlenecks
             resource = createAudioResource(stream);
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
@@ -190,29 +189,35 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferReply({ ephemeral: true });
-        }
+        await interaction.deferReply({ ephemeral: true });
 
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'join') {
             const channel = interaction.member.voice?.channel;
-            if (!channel) return interaction.editReply({ content: '❌ Join a voice channel first!' });
+            if (!channel) {
+                return interaction.editReply({ content: '❌ Join a voice channel first!' });
+            }
 
-            joinVoiceChannel({
-                channelId: channel.id,
-                guildId: interaction.guild.id,
-                adapterCreator: interaction.guild.voiceAdapterCreator,
-                selfDeaf: false,
-            });
-
-            return interaction.editReply({ content: `🎙️ Commentator connected to **${channel.name}**!` });
+            try {
+                joinVoiceChannel({
+                    channelId: channel.id,
+                    guildId: interaction.guild.id,
+                    adapterCreator: interaction.guild.voiceAdapterCreator,
+                    selfDeaf: false,
+                });
+                return interaction.editReply({ content: `🎙️ Commentator connected to **${channel.name}**!` });
+            } catch (err) {
+                console.error('❌ Voice Join Error:', err);
+                return interaction.editReply({ content: '❌ Failed to join voice channel due to a connection error.' });
+            }
         }
 
         if (subcommand === 'leave') {
             const connection = getVoiceConnection(interaction.guild.id);
-            if (!connection) return interaction.editReply({ content: '❌ Commentator is not in a voice channel.' });
+            if (!connection) {
+                return interaction.editReply({ content: '❌ Commentator is not in a voice channel.' });
+            }
 
             audioQueue = [];
             isPlaying = false;
