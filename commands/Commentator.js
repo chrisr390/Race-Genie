@@ -12,7 +12,6 @@ let audioQueue = [];
 let isPlaying = false;
 const player = createAudioPlayer();
 
-// Catch player errors in Render logs
 player.on('error', error => {
     console.error('❌ Audio Player Error:', error.message, error);
     isPlaying = false;
@@ -139,11 +138,11 @@ module.exports = {
         .addSubcommand(sub => sub.setName('join').setDescription('Connect commentator to your voice channel'))
         .addSubcommand(sub => sub.setName('leave').setDescription('Disconnect commentator from voice channel'))
 
+        // --- 🏁 WELCOME (NO EVENT NAME REQUIRED) ---
         .addSubcommand(sub =>
             sub.setName('welcome')
                 .setDescription('Broadcast race welcome message in voice channel')
-                .addStringOption(opt => opt.setName('event_name').setDescription('Track or Event name').setRequired(true))
-                .addStringOption(opt => opt.setName('laps').setDescription('Number of laps or race duration').setRequired(false))
+                .addStringOption(opt => opt.setName('laps').setDescription('Number of laps or race duration (e.g. 15 Laps)').setRequired(false))
         )
 
         .addSubcommand(sub =>
@@ -179,7 +178,7 @@ module.exports = {
             const channel = interaction.member.voice.channel;
             if (!channel) return interaction.reply({ content: '❌ Join a voice channel first!', ephemeral: true });
 
-            const connection = joinVoiceChannel({
+            joinVoiceChannel({
                 channelId: channel.id,
                 guildId: interaction.guild.id,
                 adapterCreator: interaction.guild.voiceAdapterCreator,
@@ -199,14 +198,16 @@ module.exports = {
             return interaction.reply({ content: '👋 Commentator disconnected.', ephemeral: true });
         }
 
+        // ==========================================
+        // 🎙️ WELCOME SCRIPT (NO EVENT NAME)
+        // ==========================================
         if (subcommand === 'welcome') {
-            const eventName = interaction.options.getString('event_name');
             const laps = interaction.options.getString('laps');
 
             const intros = [
-                `Welcome ladies and gentlemen to Future Champions Social Club! We are live for tonight's main event at ${eventName}.`,
-                `Good evening drivers! It is race night at Future Champions, and we are live at ${eventName}.`,
-                `Welcome back racing fans! The atmosphere is electric here at ${eventName} as drivers grid up for Future Champions.`
+                `Welcome ladies and gentlemen to Future Champions Social Club! We are live for tonight's main event.`,
+                `Good evening drivers! It is race night at Future Champions, and the grid is locked and loaded.`,
+                `Welcome back racing fans! The atmosphere is electric as drivers line up on the grid for Future Champions.`
             ];
 
             let speech = pickRandom(intros);
