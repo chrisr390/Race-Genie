@@ -137,6 +137,15 @@ module.exports = {
                 .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap P2 to P3 (e.g. 0.8 seconds)').setRequired(false))
         )
 
+        // --- ⚠️ PENALTY ANNOUNCEMENT ---
+        .addSubcommand(sub =>
+            sub.setName('penalty')
+                .setDescription('Broadcast a driver penalty in voice channel')
+                .addStringOption(opt => opt.setName('driver').setDescription('Driver Name').setRequired(true))
+                .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner (e.g. Turn 7, the chicane)').setRequired(false))
+                .addStringOption(opt => opt.setName('reason').setDescription('Reason (e.g. track limits, collision)').setRequired(false))
+        )
+
         .addSubcommand(sub =>
             sub.setName('finish')
                 .setDescription('Broadcast checkered flag and podium in voice')
@@ -210,6 +219,24 @@ module.exports = {
             if (third && gap2_3) speech += ` ${third} holds third, a further ${gap2_3} down the road.`;
             else if (third) speech += ` ${third} rounds out the top three.`;
 
+            return queueSpeech(speech, interaction);
+        }
+
+        // ==========================================
+        // 🎙️ PENALTY SCRIPT
+        // ==========================================
+        if (subcommand === 'penalty') {
+            const driver = interaction.options.getString('driver');
+            const location = interaction.options.getString('location') || 'turn 7';
+            const reason = interaction.options.getString('reason') || 'taking too many liberties';
+
+            const penaltyPhrases = [
+                `Oh dear! ${driver} has picked up a penalty on ${location} for ${reason}. What a silly boy!`,
+                `Penalty for ${driver}! Caught out on ${location} for ${reason}. That is going to cost them!`,
+                `Oh, look at that! ${driver} gets a penalty on ${location} for ${reason}. Absolute schoolboy error!`
+            ];
+
+            const speech = pickRandom(penaltyPhrases);
             return queueSpeech(speech, interaction);
         }
 
