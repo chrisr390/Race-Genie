@@ -27,6 +27,18 @@ function saveTTData(data) {
     }
 }
 
+// Convert Milliseconds back to M:SS.MMM format
+function formatMsToTime(ms) {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    const millis = Math.floor(ms % 1000);
+
+    const ss = seconds < 10 ? `0${seconds}` : `${seconds}`;
+    const mmm = millis < 100 ? (millis < 10 ? `00${millis}` : `0${millis}`) : `${millis}`;
+
+    return `${minutes}:${ss}.${mmm}`;
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tt')
@@ -54,6 +66,13 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('leaderboard')
                 .setDescription('Display current Time Trial standings')
+        )
+
+        // --- SUBCOMMAND: PACE CHART ---
+        .addSubcommand(sub =>
+            sub.setName('pace')
+                .setDescription('Generate target lap time brackets based on a reference time')
+                .addStringOption(opt => opt.setName('basetime').setDescription('Target or World Record Time (Format: M:SS.MMM e.g., 1:30.000)').setRequired(true))
         )
 
         // --- SUBCOMMAND: CLOSE TIME TRIAL ---
@@ -86,7 +105,7 @@ module.exports = {
 
             ttData.event = { track, car, deadline };
             ttData.submissions = {}; 
-            ttData.isClosed = false; // Reset lock status
+            ttData.isClosed = false;
             saveTTData(ttData);
 
             const eventEmbed = new EmbedBuilder()
@@ -120,7 +139,6 @@ module.exports = {
             const psn = interaction.options.getString('psn').trim();
             const attachment = interaction.options.getAttachment('screenshot');
 
-            // Validate M:SS.MMM format
             const timeRegex = /^([0-9]{1,2}):([0-5][0-9])\.([0-9]{3})$/;
             const match = timeStr.match(timeRegex);
 
@@ -146,7 +164,6 @@ module.exports = {
                 });
             }
 
-            // Save new personal best
             ttData.submissions[userId] = {
                 userId: userId,
                 psn: psn,
@@ -192,7 +209,6 @@ module.exports = {
                 return interaction.reply({ content: '📊 No times recorded yet. Be the first with `/tt submit`!', ephemeral: true });
             }
 
-            // Sort fastest to slowest
             submissions.sort((a, b) => a.timeMs - b.timeMs);
             const leaderMs = submissions[0].timeMs;
 
@@ -222,7 +238,51 @@ module.exports = {
         }
 
         // ==========================================
-        // 4. CLOSE TIME TRIAL
+        // 4. GENERATE PACE CHART
+        // ==========================================
+        if (subcommand === 'pace') {
+            const timeStr = interaction.options.getString('basetime').trim();
+            const timeRegex = /^([0-9]{1,2}):([0-5][0-9])\.([0-9]{3})$/;
+            const match = timeStr.match(timeRegex);
+
+            if (!match) {
+                return interaction.reply({
+                    content: '❌ Invalid base time format! Please use **`M:SS.MMM`** (e.g., `1:30.000`).',
+                    ephemeral: true
+                });
+            }
+
+            const minutes = parseInt(match[1], 10);
+            const seconds = parseInt(match[2], 10);
+            const millis = parseInt(match[3], 10);
+            const baseMs = (minutes * 60 * 1000) + (seconds * 1000) + millis;
+
+            // Target Percentages
+            const p101 = formatMsToTime(baseMs * 1.01); // Gold (+1%)
+            const p102 = formatMsToTime(baseMs * 1.02); // Silver (+2%)
+            const p103 = formatMsToTime(baseMs * 1.03); // Bronze (+3%)
+            const p105 = formatMsToTime(baseMs * 1.05); // Target (+5%)
+
+            const trackInfo = ttData.event ? ` — ${ttData.event.track}` : '';
+
+            const paceEmbed = new EmbedBuilder()
+                .setTitle(`📊 TARGET PACE CHART${trackInfo}`)
+                .setDescription(`Calculated targets based on Reference Time: **\`${timeStr}\`**`)
+                .addFields(
+                    { name: '🥇 Gold Tier (101.0%)', value: `**\`${p101}\`** *(+${((baseMs*0.01)/1000).toFixed(3)}s)*`, inline: false },
+                    { name: '🥈 Silver Tier (102.0%)', value: `**\`${p102}\`** *(+${((baseMs*0.02)/1000).toFixed(3)}s)*`, inline: false },
+                    { name: '🥉 Bronze Tier (103.0%)', value: `**\`${p103}\`** *(+${((baseMs*0.03)/1000).toFixed(3)}s)*`, inline: false },
+                    { name: '🏁 Target Pace (105.0%)', value: `**\`${p105}\`** *(+${((baseMs*0.05)/1000).toFixed(3)}s)*`, inline: false }
+                )
+                .setColor('#3498DB')
+                .setFooter({ text: 'Future Champions Social Club • Pace Analysis' })
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [paceEmbed] });
+        }
+
+        // ==========================================
+        // 5. CLOSE TIME TRIAL
         // ==========================================
         if (subcommand === 'close') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
@@ -247,7 +307,7 @@ module.exports = {
         }
 
         // ==========================================
-        // 5. CLEAR LEADERBOARD
+        // 6. CLEAR LEADERBOARD
         // ==========================================
         if (subcommand === 'clear') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
