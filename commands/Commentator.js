@@ -287,6 +287,7 @@ module.exports = {
             const reason = interaction.options.getString('reason') || 'taking too many liberties';
 
             const penaltyPhrases = [
+                // --- Classic Cheeky ---
                 `Oh dear! ${driver} has picked up a penalty on ${location} for ${reason}. What a silly boy!`,
                 `Penalty for ${driver}! Caught out on ${location} for ${reason}. That is going to cost them!`,
                 `Oh, look at that! ${driver} gets a penalty on ${location} for ${reason}. Absolute schoolboy error!`,
@@ -297,10 +298,28 @@ module.exports = {
                 `Naughty, naughty! ${driver} gets done at ${location} for ${reason}. What on earth were they thinking?`,
                 `Well, ${driver} tried their luck at ${location} for ${reason} and the stewards said absolutely not!`,
                 `That is a classic lapse in judgment from ${driver}! Penalty copped at ${location} for ${reason}.`,
+
+                // --- Race Director & Track Action ---
                 `Disaster for ${driver}! Caught red-handed at ${location} for ${reason}. Stick to the track, mate!`,
                 `The race directors are not in a forgiving mood tonight. ${driver} pinged at ${location} for ${reason}!`,
                 `Did ${driver} think the stewards were having a tea break? Penalty given at ${location} for ${reason}!`,
                 `Bit of bumper cars from ${driver} at ${location} for ${reason}! That is a slap on the wrist from the stewards.`,
+
+                // --- Tongue in Cheek & Sarcastic ---
+                `Great news for ${driver}! The stewards have awarded them a shiny new penalty at ${location} for ${reason}!`,
+                `I see ${driver} is applying for a job as a lawnmower at ${location}. Penalty given for ${reason}!`,
+                `Tremendous track limits interpretation from ${driver} at ${location}! Unfortunately, the stewards didn't share the vision. Penalty!`,
+                `If ${driver} spent as much time on the track as they do off it, they'd be leading! Time penalty for ${reason} at ${location}.`,
+                `Are we sure ${driver} hasn't confused Gran Turismo with Destruction Derby? Penalty copped at ${location} for ${reason}!`,
+                `Give ${driver} a medal... or better yet, a time penalty at ${location} for ${reason}!`,
+                `That was less of a racing line and more of a scenic bypass from ${driver} at ${location}. Penalty for ${reason}!`,
+                `The stewards have reviewed ${driver}'s masterclass at ${location} and decided it deserves a time penalty for ${reason}.`,
+                `Breaking news: ${driver} has discovered a shortcut at ${location}! Bad news: the stewards discovered it too. Penalty for ${reason}!`,
+                `Did ${driver} forget where the brake pedal is? Penalty given at ${location} for ${reason}. Absolutely sublime driving!`,
+                `I'm no expert, but I don't think you're supposed to hit that, ${driver}! Time added for ${reason} at ${location}.`,
+                `A moment of pure, unadulterated madness from ${driver} at ${location}. Penalty for ${reason}!`,
+                `Someone tell ${driver} that track limits aren't just polite suggestions! Penalty handed out at ${location} for ${reason}.`,
+                `I hope ${driver} brought their wallet, because the stewards are charging them for ${reason} at ${location}!`,
                 `Unbelievable scenes! ${driver} picks up time for ${reason} at ${location}. Absolutely shambolic!`
             ];
 
