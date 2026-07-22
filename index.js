@@ -1,20 +1,20 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes, EmbedBuilder } = require('discord.js');
-const express = require('express');
+const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
 
 // ==========================================
-// 1. EXPRESS WEB SERVER (KEEPS RENDER ALIVE)
+// 1. KEEP-ALIVE SERVER (FOR RENDER)
 // ==========================================
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Race Genie is online and awake!');
+    res.send('🏎️ Race Genie is live and operational!');
 });
 
 app.listen(PORT, () => {
-    console.log(`HTTP Web Server listening on port ${PORT}`);
+    console.log(`🌐 Keep-alive server running on port ${PORT}`);
 });
 
 // ==========================================
@@ -24,170 +24,102 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMembers // Required for Welcome & Goodbye events
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates // Required for Voice Channels & /commentator
     ]
 });
 
-// In-Memory Storage for Welcome/Goodbye configs
-client.welcomeConfig = null;
-client.goodbyeConfig = null;
-
-// Load Commands Dynamically
 client.commands = new Collection();
-const commands = [];
+const commandsData = [];
+
+// ==========================================
+// 3. LOAD SLASH COMMANDS FROM /commands
+// ==========================================
 const commandsPath = path.join(__dirname, 'commands');
 
 if (fs.existsSync(commandsPath)) {
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-            commands.push(command.data.toJSON());
-            console.log(`Loaded command: /${command.data.name}`);
+        try {
+            const command = require(filePath);
+            if ('data' in command && 'execute' in command) {
+                client.commands.set(command.data.name, command);
+                commandsData.push(command.data.toJSON());
+                console.log(`✅ Loaded command: ${command.data.name}`);
+            } else {
+                console.log(`⚠️ Warning: ${file} is missing required "data" or "execute" properties.`);
+            }
+        } catch (err) {
+            console.error(`❌ Error loading command file ${file}:`, err);
         }
+    }
+} else {
+    console.warn(`⚠️ Commands directory not found at: ${commandsPath}`);
+}
+
+// ==========================================
+// 4. REGISTER SLASH COMMANDS WITH DISCORD
+// ==========================================
+async function registerCommands() {
+    const token = process.env.DISCORD_TOKEN;
+    const clientId = process.env.CLIENT_ID;
+
+    if (!token || !clientId) {
+        console.error('❌ DISCORD_TOKEN or CLIENT_ID environment variables are missing!');
+        return;
+    }
+
+    const rest = new REST({ version: '10' }).setToken(token);
+
+    try {
+        console.log(`🚀 Registering ${commandsData.length} slash commands with Discord...`);
+        await rest.put(
+            Routes.applicationCommands(clientId),
+            { body: commandsData }
+        );
+        console.log('✅ Application slash commands registered successfully!');
+    } catch (error) {
+        console.error('❌ Failed to register slash commands:', error);
     }
 }
 
 // ==========================================
-// 3. INTERACTION HANDLING (SLASH COMMANDS & MODALS)
-// ==========================================
-client.on('interactionCreate', async interaction => {
-
-    // --- HANDLE SLASH COMMANDS ---
-    if (interaction.isChatInputCommand()) {
-        const command = client.commands.get(interaction.commandName);
-        if (!command) return;
-
-        try {
-            await command.execute(interaction);
-        } catch (error) {
-            console.error(`Error executing /${interaction.commandName}:`, error);
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
-            } else {
-                await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
-            }
-        }
-        return;
-    }
-
-    // --- HANDLE STEWARD REPORT MODAL SUBMISSION ---
-    if (interaction.isModalSubmit() && interaction.customId === 'steward_report_modal') {
-        try {
-            const raceInfo = interaction.fields.getTextInputValue('incident_race');
-            const driversInvolved = interaction.fields.getTextInputValue('incident_drivers');
-            const incidentDesc = interaction.fields.getTextInputValue('incident_desc');
-
-            // Find steward channel by name
-            const stewardChannel = interaction.guild.channels.cache.find(ch => ch.name === 'steward-review')
-                || interaction.guild.channels.cache.find(ch => ch.name === 'stewards');
-
-            const reportEmbed = new EmbedBuilder()
-                .setTitle('🚨 NEW INCIDENT REPORT')
-                .setDescription(`Submitted by ${interaction.user}`)
-                .addFields(
-                    { name: '🏁 Event & Lap', value: raceInfo, inline: false },
-                    { name: '🏎️ Drivers Involved', value: driversInvolved, inline: false },
-                    { name: '📝 Description & Replay Stamp', value: incidentDesc, inline: false }
-                )
-                .setColor('#FFCC00') // Warning Amber
-                .setFooter({ text: 'Future Champions Social Club • Steward Panel' })
-                .setTimestamp();
-
-            if (stewardChannel) {
-                await stewardChannel.send({ embeds: [reportEmbed] });
-                await interaction.reply({ content: '✅ Your report has been submitted confidentially to the stewards.', ephemeral: true });
-            } else {
-                await interaction.reply({ 
-                    content: '✅ Incident report submitted! *(Note: Create a `#steward-review` channel for automated logging).*', 
-                    embeds: [reportEmbed], 
-                    ephemeral: true 
-                });
-            }
-        } catch (error) {
-            console.error('Error handling steward modal submission:', error);
-            await interaction.reply({ content: '❌ Error processing your incident report.', ephemeral: true });
-        }
-    }
-});
-
-// ==========================================
-// 4. WELCOME & GOODBYE EVENT LISTENERS
-// ==========================================
-
-// --- WELCOME EVENT ---
-client.on('guildMemberAdd', async (member) => {
-    const config = client.welcomeConfig;
-    
-    // Find custom configured channel or fallback to a channel named 'welcome'
-    const welcomeChannel = config?.channelId 
-        ? member.guild.channels.cache.get(config.channelId)
-        : member.guild.channels.cache.find(ch => ch.name === 'welcome');
-
-    if (!welcomeChannel) return;
-
-    const rawMessage = config?.message || 'Welcome {user} to {server}! Glad to have you with us on track.';
-    const formattedMessage = rawMessage
-        .replace(/{user}/g, member.toString())
-        .replace(/{server}/g, member.guild.name);
-
-    const welcomeEmbed = new EmbedBuilder()
-        .setTitle('🏁 WELCOME TO FUTURE CHAMPIONS SOCIAL CLUB!')
-        .setDescription(formattedMessage)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setColor('#4CE600') // FCSC Signature Lime Green
-        .setFooter({ text: 'Future Champions Social Club • Clean & Competitive Racing' })
-        .setTimestamp();
-
-    welcomeChannel.send({ content: `Welcome ${member}!`, embeds: [welcomeEmbed] }).catch(console.error);
-});
-
-// --- GOODBYE EVENT ---
-client.on('guildMemberRemove', async (member) => {
-    const config = client.goodbyeConfig;
-
-    // Find custom configured channel or fallback to a channel named 'goodbye'
-    const goodbyeChannel = config?.channelId 
-        ? member.guild.channels.cache.get(config.channelId)
-        : member.guild.channels.cache.find(ch => ch.name === 'goodbye');
-
-    if (!goodbyeChannel) return;
-
-    const rawMessage = config?.message || '**{username}** has pulled into the pits and left the server. We wish them all the best on track! 🏁';
-    const formattedMessage = rawMessage.replace(/{username}/g, member.user.username);
-
-    const goodbyeEmbed = new EmbedBuilder()
-        .setTitle('👋 MEMBER LEFT')
-        .setDescription(formattedMessage)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setColor('#FF3333') // Red Accent
-        .setFooter({ text: 'Future Champions Social Club' })
-        .setTimestamp();
-
-    goodbyeChannel.send({ embeds: [goodbyeEmbed] }).catch(console.error);
-});
-
-// ==========================================
-// 5. BOT READY & REGISTER COMMANDS
+// 5. EVENT LISTENERS
 // ==========================================
 client.once('ready', async () => {
     console.log(`🤖 Logged in as ${client.user.tag}!`);
+    client.user.setActivity('GT7 | Future Champions', { type: 0 }); // Playing status
+    await registerCommands();
+});
 
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+// Handle Slash Command Interactions
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const command = client.commands.get(interaction.commandName);
+
+    if (!command) {
+        console.error(`❌ No command matching ${interaction.commandName} was found.`);
+        return;
+    }
 
     try {
-        console.log('Registering (/) slash commands...');
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands }
-        );
-        console.log('Successfully registered all (/) slash commands!');
+        await command.execute(interaction);
     } catch (error) {
-        console.error('Error registering slash commands:', error);
+        console.error(`❌ Error executing ${interaction.commandName}:`, error);
+        
+        const errorMessage = { content: '❌ An error occurred while executing this command!', ephemeral: true };
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorMessage);
+        } else {
+            await interaction.reply(errorMessage);
+        }
     }
 });
 
-// Login
+// ==========================================
+// 6. LOGIN
+// ==========================================
 client.login(process.env.DISCORD_TOKEN);
