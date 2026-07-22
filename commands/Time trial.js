@@ -10,12 +10,12 @@ function loadTTData() {
         const dir = path.dirname(DATA_PATH);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         if (!fs.existsSync(DATA_PATH)) {
-            fs.writeFileSync(DATA_PATH, JSON.stringify({ event: null, submissions: {} }, null, 2));
+            fs.writeFileSync(DATA_PATH, JSON.stringify({ event: null, submissions: {}, isClosed: false }, null, 2));
         }
         return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
     } catch (err) {
         console.error('Error loading Time Trial data:', err);
-        return { event: null, submissions: {} };
+        return { event: null, submissions: {}, isClosed: false };
     }
 }
 
@@ -56,6 +56,12 @@ module.exports = {
                 .setDescription('Display current Time Trial standings')
         )
 
+        // --- SUBCOMMAND: CLOSE TIME TRIAL ---
+        .addSubcommand(sub =>
+            sub.setName('close')
+                .setDescription('Lock the active Time Trial so no new times can be submitted')
+        )
+
         // --- SUBCOMMAND: CLEAR LEADERBOARD ---
         .addSubcommand(sub =>
             sub.setName('clear')
@@ -79,7 +85,8 @@ module.exports = {
             const deadline = interaction.options.getString('deadline');
 
             ttData.event = { track, car, deadline };
-            ttData.submissions = {}; // Clear old submissions when starting new event
+            ttData.submissions = {}; 
+            ttData.isClosed = false; // Reset lock status
             saveTTData(ttData);
 
             const eventEmbed = new EmbedBuilder()
@@ -103,6 +110,10 @@ module.exports = {
         if (subcommand === 'submit') {
             if (!ttData.event) {
                 return interaction.reply({ content: '❌ There is no active Time Trial event right now!', ephemeral: true });
+            }
+
+            if (ttData.isClosed) {
+                return interaction.reply({ content: '🔒 **This Time Trial is now CLOSED.** No further submissions are being accepted.', ephemeral: true });
             }
 
             const timeStr = interaction.options.getString('time').trim();
@@ -198,10 +209,12 @@ module.exports = {
                 boardText += `${pos} — **\`${entry.time}\`** | <@${entry.userId}> (\`${entry.psn}\`)${gap}\n`;
             });
 
+            const statusHeader = ttData.isClosed ? '🔒 FINAL LEADERBOARD (CLOSED)' : '🏆 GT7 TIME TRIAL LEADERBOARD';
+
             const boardEmbed = new EmbedBuilder()
-                .setTitle(`🏆 GT7 TIME TRIAL LEADERBOARD — ${ttData.event.track}`)
+                .setTitle(`${statusHeader} — ${ttData.event.track}`)
                 .setDescription(`**Car:** ${ttData.event.car}\n**Deadline:** ${ttData.event.deadline}\n\n${boardText}`)
-                .setColor('#FFCC00')
+                .setColor(ttData.isClosed ? '#FF3333' : '#FFCC00')
                 .setFooter({ text: 'Future Champions Social Club • Standings' })
                 .setTimestamp();
 
@@ -209,7 +222,32 @@ module.exports = {
         }
 
         // ==========================================
-        // 4. CLEAR LEADERBOARD
+        // 4. CLOSE TIME TRIAL
+        // ==========================================
+        if (subcommand === 'close') {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
+                return interaction.reply({ content: '❌ You need Manage Events permissions to close a Time Trial.', ephemeral: true });
+            }
+
+            if (!ttData.event) {
+                return interaction.reply({ content: '❌ There is no active Time Trial event to close.', ephemeral: true });
+            }
+
+            ttData.isClosed = true;
+            saveTTData(ttData);
+
+            const closeEmbed = new EmbedBuilder()
+                .setTitle('🔒 TIME TRIAL IS NOW CLOSED')
+                .setDescription('Submissions are locked for this event! You can still view final standings with `/tt leaderboard`.')
+                .setColor('#FF3333')
+                .setFooter({ text: 'Future Champions Social Club • Event Closed' })
+                .setTimestamp();
+
+            return interaction.reply({ embeds: [closeEmbed] });
+        }
+
+        // ==========================================
+        // 5. CLEAR LEADERBOARD
         // ==========================================
         if (subcommand === 'clear') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
@@ -218,6 +256,7 @@ module.exports = {
 
             ttData.event = null;
             ttData.submissions = {};
+            ttData.isClosed = false;
             saveTTData(ttData);
 
             const clearEmbed = new EmbedBuilder()
