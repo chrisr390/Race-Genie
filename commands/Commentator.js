@@ -6,6 +6,9 @@ let audioQueue = [];
 let isPlaying = false;
 const player = createAudioPlayer();
 
+// Helper to pick random commentary variations
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
 async function playNextInQueue(connection) {
     if (audioQueue.length === 0) {
         isPlaying = false;
@@ -72,25 +75,39 @@ module.exports = {
         .setName('commentator')
         .setDescription('Race Genie Live Voice Commentator')
 
+        // --- CONNECT / DISCONNECT ---
         .addSubcommand(sub => sub.setName('join').setDescription('Connect commentator to your voice channel'))
         .addSubcommand(sub => sub.setName('leave').setDescription('Disconnect commentator from voice channel'))
 
+        // --- 1. WELCOME BROADCAST ---
         .addSubcommand(sub =>
             sub.setName('welcome')
                 .setDescription('Broadcast race welcome message in voice channel')
-                .addStringOption(opt => opt.setName('event_name').setDescription('Track or Event name').setRequired(true))
+                .addStringOption(opt => opt.setName('event_name').setDescription('Track or Event name (e.g. Spa, Trial Mountain)').setRequired(true))
+                .addStringOption(opt => opt.setName('laps').setDescription('Number of laps or race duration (e.g. 15 Laps)').setRequired(false))
         )
 
+        // --- 2. GAPS CALLOUT ---
         .addSubcommand(sub =>
             sub.setName('gaps')
                 .setDescription('Broadcast live leader and driver gaps in voice channel')
                 .addStringOption(opt => opt.setName('leader').setDescription('P1 Driver Name').setRequired(true))
                 .addStringOption(opt => opt.setName('second').setDescription('P2 Driver Name').setRequired(false))
-                .addStringOption(opt => opt.setName('gap1_2').setDescription('Gap 1st to 2nd (e.g. 1.4 seconds)').setRequired(false))
+                .addStringOption(opt => opt.setName('gap1_2').setDescription('Gap P1 to P2 (e.g. 1.4 seconds)').setRequired(false))
                 .addStringOption(opt => opt.setName('third').setDescription('P3 Driver Name').setRequired(false))
-                .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap 2nd to 3rd (e.g. 0.8 seconds)').setRequired(false))
+                .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap P2 to P3 (e.g. 0.8 seconds)').setRequired(false))
         )
 
+        // --- 3. FINISH & PODIUM ---
+        .addSubcommand(sub =>
+            sub.setName('finish')
+                .setDescription('Broadcast checkered flag, winner, and podium in voice')
+                .addStringOption(opt => opt.setName('winner').setDescription('Race Winner (P1)').setRequired(true))
+                .addStringOption(opt => opt.setName('second').setDescription('Second Place (P2)').setRequired(false))
+                .addStringOption(opt => opt.setName('third').setDescription('Third Place (P3)').setRequired(false))
+        )
+
+        // --- LAP GAP TEXT CARD ---
         .addSubcommand(sub =>
             sub.setName('lap-gap')
                 .setDescription('Post lap positions and gaps as a text card in chat')
@@ -100,14 +117,6 @@ module.exports = {
                 .addStringOption(opt => opt.setName('gap1_2').setDescription('Gap P1 to P2 (e.g. 1.4s)').setRequired(false))
                 .addStringOption(opt => opt.setName('third').setDescription('P3 Driver').setRequired(false))
                 .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap P2 to P3 (e.g. 0.8s)').setRequired(false))
-        )
-
-        .addSubcommand(sub =>
-            sub.setName('finish')
-                .setDescription('Broadcast checkered flag and podium finishes in voice')
-                .addStringOption(opt => opt.setName('winner').setDescription('Race Winner').setRequired(true))
-                .addStringOption(opt => opt.setName('second').setDescription('Second Place').setRequired(true))
-                .addStringOption(opt => opt.setName('third').setDescription('Third Place').setRequired(true))
         ),
 
     async execute(interaction) {
@@ -137,12 +146,31 @@ module.exports = {
             return interaction.reply({ content: '👋 Commentator disconnected.', ephemeral: true });
         }
 
+        // ==========================================
+        // 🎙️ 1. WELCOME SCRIPT
+        // ==========================================
         if (subcommand === 'welcome') {
             const eventName = interaction.options.getString('event_name');
-            const speech = `Welcome ladies and gentlemen to Future Champions Social Club! We are live for today's race at ${eventName}. Red lights are on, and we are ready for racing!`;
+            const laps = interaction.options.getString('laps');
+
+            const intros = [
+                `Welcome ladies and gentlemen to Future Champions Social Club! We are live for tonight's main event at ${eventName}.`,
+                `Good evening and welcome drivers! It is race night at Future Champions, and we are live at ${eventName}.`,
+                `Welcome back racing fans! The atmosphere is electric here at ${eventName} as drivers grid up for Future Champions Social Club.`
+            ];
+
+            let speech = pickRandom(intros);
+            if (laps) {
+                speech += ` We are set for ${laps} of wheel-to-wheel action.`;
+            }
+            speech += ` The five red lights are on, engine revs are high, and we are ready for racing!`;
+
             return queueSpeech(speech, interaction);
         }
 
+        // ==========================================
+        // 🎙️ 2. GAPS SCRIPT
+        // ==========================================
         if (subcommand === 'gaps') {
             const leader = interaction.options.getString('leader');
             const second = interaction.options.getString('second');
@@ -150,16 +178,69 @@ module.exports = {
             const third = interaction.options.getString('third');
             const gap2_3 = interaction.options.getString('gap2_3');
 
-            let speech = `${leader} is currently leading the race.`;
-            if (second && gap1_2) speech += ` ${second} is in second, trailing by ${gap1_2}.`;
-            else if (second) speech += ` ${second} sits in second.`;
+            const leaderIntros = [
+                `${leader} continues to command the pace out in front.`,
+                `${leader} is setting the rhythm at the head of the field.`,
+                `${leader} holds the lead as they cross the line.`
+            ];
 
-            if (third && gap2_3) speech += ` ${third} is in third, ${gap2_3} further back.`;
-            else if (third) speech += ` ${third} holds third position.`;
+            let speech = pickRandom(leaderIntros);
+
+            if (second && gap1_2) {
+                const p2Phrases = [
+                    ` ${second} sits in second place, trailing by ${gap1_2}.`,
+                    ` ${second} is giving chase in second, ${gap1_2} off the lead.`,
+                    ` Behind in second is ${second}, keeping the pressure on at ${gap1_2} back.`
+                ];
+                speech += pickRandom(p2Phrases);
+            } else if (second) {
+                speech += ` ${second} is currently holding second position.`;
+            }
+
+            if (third && gap2_3) {
+                const p3Phrases = [
+                    ` ${third} holds third, a further ${gap2_3} down the road.`,
+                    ` And ${third} completes the top three, trailing by ${gap2_3}.`,
+                    ` ${third} sits in third, ${gap2_3} adrift.`
+                ];
+                speech += pickRandom(p3Phrases);
+            } else if (third) {
+                speech += ` ${third} rounds out the top three.`;
+            }
 
             return queueSpeech(speech, interaction);
         }
 
+        // ==========================================
+        // 🎙️ 3. FINISH & PODIUM SCRIPT
+        // ==========================================
+        if (subcommand === 'finish') {
+            const winner = interaction.options.getString('winner');
+            const second = interaction.options.getString('second');
+            const third = interaction.options.getString('third');
+
+            const victoryIntros = [
+                `The checkered flag drops! What a drive! Taking a sensational victory today, congratulations to ${winner}!`,
+                `Checkered flag is out! Crossing the line to claim a brilliant win, taking top spot on the podium is ${winner}!`,
+                `And that is race over! What a masterclass of driving from ${winner}, who takes victory at Future Champions Social Club!`
+            ];
+
+            let speech = pickRandom(victoryIntros);
+
+            if (second && third) {
+                speech += ` ${second} puts in a stellar performance to secure second place, and ${third} rounds out today's podium in third!`;
+            } else if (second) {
+                speech += ` ${second} brings it home in second place!`;
+            }
+
+            speech += ` Outstanding racing from everyone tonight, bring those cars safely home on the cool-down lap!`;
+
+            return queueSpeech(speech, interaction);
+        }
+
+        // ==========================================
+        // 📄 4. CHAT LAP GAP CARD
+        // ==========================================
         if (subcommand === 'lap-gap') {
             const lap = interaction.options.getInteger('lap');
             const leader = interaction.options.getString('leader');
@@ -180,16 +261,6 @@ module.exports = {
                 .setTimestamp();
 
             return interaction.reply({ embeds: [gapEmbed] });
-        }
-
-        if (subcommand === 'finish') {
-            const winner = interaction.options.getString('winner');
-            const second = interaction.options.getString('second');
-            const third = interaction.options.getString('third');
-
-            const speech = `The checkered flag drops! Taking victory today, congratulations to ${winner}! Finishing in second place is ${second}, and rounding out the podium in third is ${third}. Thank you all for tuning in, keep it clean on track!`;
-
-            return queueSpeech(speech, interaction);
         }
     }
 };
