@@ -1,7 +1,7 @@
 {
   "name": "future-champions-commentator",
   "version": "1.0.0",
-  "description": "Future Champions Voice Announcer",
+  "description": "Future Champions Race Voice Announcer",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
