@@ -4,13 +4,18 @@ const path = require('path');
 const express = require('express');
 
 // ==========================================
-// 1. KEEP-ALIVE SERVER (FOR RENDER)
+// 1. KEEP-ALIVE SERVER (FOR RENDER & PINGING)
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
     res.send('🏎️ Race Genie is live and operational!');
+});
+
+// Endpoint for external keep-awake pings
+app.get('/ping', (req, res) => {
+    res.status(200).send('PONG');
 });
 
 app.listen(PORT, () => {
@@ -90,7 +95,7 @@ async function registerCommands() {
 // ==========================================
 client.once('ready', async () => {
     console.log(`🤖 Logged in as ${client.user.tag}!`);
-    client.user.setActivity('GT7 | Future Champions', { type: 0 }); // Playing status
+    client.user.setActivity('GT7 | Future Champions', { type: 0 });
     await registerCommands();
 });
 
