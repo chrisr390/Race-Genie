@@ -1,12 +1,17 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
 const googleTTS = require('google-tts-api');
 const { Readable } = require('stream');
+const ffmpeg = require('ffmpeg-static');
+
+// Force prism-media to use static FFmpeg binary for MP3 -> PCM transcoding
+process.env.FFMPEG_PATH = ffmpeg;
 
 // ==========================================
-// 🎙️ CUSTOM ELEVENLABS VOICE CONFIGURATION
+// 🎙️ ELEVENLABS VOICE CONFIGURATION
 // ==========================================
-const ELEVENLABS_VOICE_ID = 'lcMyyd2HUfFzxdCaC4Ta'; 
+// Rachel (Default Free Tier Voice)
+const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; 
 
 let audioQueue = [];
 let isPlaying = false;
@@ -71,7 +76,7 @@ async function playNextInQueue(connection) {
             const buffer = Buffer.from(arrayBuffer);
             const stream = Readable.from(buffer);
 
-            // StreamType.Arbitrary forces FFmpeg/Prism to decode MP3 into raw Discord PCM
+            // StreamType.Arbitrary forces FFmpeg to decode MP3 directly into Discord PCM audio
             resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
@@ -198,7 +203,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // Defer reply immediately so Discord interaction never times out
+        // Defer reply immediately to prevent Discord 3-second timeout
         await interaction.deferReply({ ephemeral: true });
 
         const subcommand = interaction.options.getSubcommand();
