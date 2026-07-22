@@ -1,6 +1,6 @@
 const http = require('http');
 
-// 1. HTTP Web Server for Render Free Tier Port Binding
+// 1. Instant HTTP server for Render Free Plan port binding
 const PORT = process.env.PORT || 10000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
