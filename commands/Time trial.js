@@ -44,10 +44,10 @@ module.exports = {
         // --- SUBCOMMAND: SUBMIT TIME ---
         .addSubcommand(sub =>
             sub.setName('submit')
-                .setDescription('Submit your lap time with screenshot proof')
+                .setDescription('Submit your lap time with PSN ID')
                 .addStringOption(opt => opt.setName('time').setDescription('Lap Time (Format: M:SS.MMM e.g., 1:32.456)').setRequired(true))
-                .addAttachmentOption(opt => opt.setName('screenshot').setDescription('Upload screenshot proof').setRequired(true))
-                .addStringOption(opt => opt.setName('psn').setDescription('Your PSN ID').setRequired(false))
+                .addStringOption(opt => opt.setName('psn').setDescription('Your PSN ID / Gamer Tag').setRequired(true))
+                .addAttachmentOption(opt => opt.setName('screenshot').setDescription('Upload screenshot proof (Optional)').setRequired(false))
         )
 
         // --- SUBCOMMAND: LEADERBOARD ---
@@ -84,7 +84,7 @@ module.exports = {
 
             const eventEmbed = new EmbedBuilder()
                 .setTitle('⏱️ NEW GT7 TIME TRIAL IS LIVE!')
-                .setDescription(`A new Sport Mode time trial has begun! Submit your fastest lap and screenshot using \`/tt submit\`.`)
+                .setDescription(`A new Sport Mode time trial has begun! Submit your fastest lap using \`/tt submit\`.`)
                 .addFields(
                     { name: '📍 Track', value: track, inline: true },
                     { name: '🏎️ Car / Class', value: car, inline: true },
@@ -106,8 +106,8 @@ module.exports = {
             }
 
             const timeStr = interaction.options.getString('time').trim();
+            const psn = interaction.options.getString('psn').trim();
             const attachment = interaction.options.getAttachment('screenshot');
-            const psn = interaction.options.getString('psn') || interaction.user.username;
 
             // Validate M:SS.MMM format
             const timeRegex = /^([0-9]{1,2}):([0-5][0-9])\.([0-9]{3})$/;
@@ -141,7 +141,7 @@ module.exports = {
                 psn: psn,
                 time: timeStr,
                 timeMs: totalMs,
-                proofUrl: attachment.url,
+                proofUrl: attachment ? attachment.url : null,
                 timestamp: new Date().toISOString()
             };
             saveTTData(ttData);
@@ -150,11 +150,14 @@ module.exports = {
 
             const confirmEmbed = new EmbedBuilder()
                 .setTitle(isImprovement ? '🚀 TIME IMPROVED!' : '✅ LAP TIME LOGGED!')
-                .setDescription(`**Driver:** ${interaction.user} (\`${psn}\`)\n**Best Lap:** \`${timeStr}\``)
-                .setImage(attachment.url)
+                .setDescription(`**Driver:** ${interaction.user}\n**PSN ID:** \`${psn}\`\n**Best Lap:** \`${timeStr}\``)
                 .setColor('#4CE600')
                 .setFooter({ text: 'Future Champions Social Club • Time Trial Series' })
                 .setTimestamp();
+
+            if (attachment) {
+                confirmEmbed.setImage(attachment.url);
+            }
 
             return interaction.reply({
                 content: isImprovement 
