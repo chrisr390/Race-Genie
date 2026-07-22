@@ -289,7 +289,19 @@ module.exports = {
             const penaltyPhrases = [
                 `Oh dear! ${driver} has picked up a penalty on ${location} for ${reason}. What a silly boy!`,
                 `Penalty for ${driver}! Caught out on ${location} for ${reason}. That is going to cost them!`,
-                `Oh, look at that! ${driver} gets a penalty on ${location} for ${reason}. Absolute schoolboy error!`
+                `Oh, look at that! ${driver} gets a penalty on ${location} for ${reason}. Absolute schoolboy error!`,
+                `Stewards have stepped in! ${driver} gets hit with a penalty at ${location} for ${reason}. You simply cannot do that!`,
+                `Someone get ${driver} a map! A penalty awarded at ${location} for ${reason}. Dear oh dear!`,
+                `That was optimistic from ${driver}! Penalty given at ${location} for ${reason}. Brain off, full send!`,
+                `The stewards were never going to miss that one. ${driver} penalized at ${location} for ${reason}!`,
+                `Naughty, naughty! ${driver} gets done at ${location} for ${reason}. What on earth were they thinking?`,
+                `Well, ${driver} tried their luck at ${location} for ${reason} and the stewards said absolutely not!`,
+                `That is a classic lapse in judgment from ${driver}! Penalty copped at ${location} for ${reason}.`,
+                `Disaster for ${driver}! Caught red-handed at ${location} for ${reason}. Stick to the track, mate!`,
+                `The race directors are not in a forgiving mood tonight. ${driver} pinged at ${location} for ${reason}!`,
+                `Did ${driver} think the stewards were having a tea break? Penalty given at ${location} for ${reason}!`,
+                `Bit of bumper cars from ${driver} at ${location} for ${reason}! That is a slap on the wrist from the stewards.`,
+                `Unbelievable scenes! ${driver} picks up time for ${reason} at ${location}. Absolutely shambolic!`
             ];
 
             return queueSpeech(pickRandom(penaltyPhrases), interaction);
