@@ -1,7 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
 const googleTTS = require('google-tts-api');
 const { Readable } = require('stream');
+const ffmpeg = require('ffmpeg-static');
+
+process.env.FFMPEG_PATH = ffmpeg;
 
 const ELEVENLABS_VOICE_ID = 'lcMyyd2HUfFzxdCaC4Ta';
 
@@ -68,7 +71,11 @@ async function playNextInQueue(connection) {
             const buffer = Buffer.from(arrayBuffer);
             const stream = Readable.from(buffer);
 
-            resource = createAudioResource(stream);
+            resource = createAudioResource(stream, { 
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true 
+            });
+            resource.volume.setVolume(1.5);
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
             const url = googleTTS.getAudioUrl(textToSpeak, {
@@ -77,12 +84,12 @@ async function playNextInQueue(connection) {
                 host: 'https://translate.google.com',
                 timeout: 10000,
             });
-            resource = createAudioResource(url);
+            resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
         }
 
         connection.subscribe(player);
         player.play(resource);
-        console.log('▶️ Audio playing successfully in voice channel!');
+        console.log('▶️ Audio resource playing successfully!');
 
     } catch (err) {
         console.error('❌ Primary Voice Error:', err.message);
@@ -90,7 +97,7 @@ async function playNextInQueue(connection) {
         
         try {
             const fallbackUrl = googleTTS.getAudioUrl(textToSpeak, { lang: 'en-GB', slow: false });
-            const resource = createAudioResource(fallbackUrl);
+            const resource = createAudioResource(fallbackUrl, { inputType: StreamType.Arbitrary });
             connection.subscribe(player);
             player.play(resource);
         } catch (fallbackErr) {
@@ -131,8 +138,10 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('commentator')
         .setDescription('Future Champions Live Voice Announcer v3')
+
         .addSubcommand(sub => sub.setName('join').setDescription('Connect commentator to your voice channel'))
         .addSubcommand(sub => sub.setName('leave').setDescription('Disconnect commentator from voice channel'))
+
         .addSubcommand(sub =>
             sub.setName('welcome')
                 .setDescription('Broadcast session welcome message in voice channel')
@@ -147,6 +156,7 @@ module.exports = {
                 )
                 .addStringOption(opt => opt.setName('laps').setDescription('Duration or Laps').setRequired(false))
         )
+
         .addSubcommand(sub =>
             sub.setName('gaps')
                 .setDescription('Broadcast live leader and driver gaps in voice channel')
@@ -156,6 +166,7 @@ module.exports = {
                 .addStringOption(opt => opt.setName('third').setDescription('P3 Driver Name').setRequired(false))
                 .addStringOption(opt => opt.setName('gap2_3').setDescription('Gap P2 to P3').setRequired(false))
         )
+
         .addSubcommand(sub =>
             sub.setName('penalty')
                 .setDescription('Broadcast a driver penalty in voice channel')
@@ -163,6 +174,7 @@ module.exports = {
                 .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner').setRequired(false))
                 .addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(false))
         )
+
         .addSubcommand(sub =>
             sub.setName('incident')
                 .setDescription('Broadcast an on-track crash, contact, or incident')
@@ -170,6 +182,7 @@ module.exports = {
                 .addStringOption(opt => opt.setName('driver2').setDescription('Second Driver Involved (if applicable)').setRequired(false))
                 .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner').setRequired(false))
         )
+
         .addSubcommand(sub =>
             sub.setName('finish')
                 .setDescription('Broadcast checkered flag and podium in voice')
@@ -177,6 +190,7 @@ module.exports = {
                 .addStringOption(opt => opt.setName('second').setDescription('Second Place (P2)').setRequired(false))
                 .addStringOption(opt => opt.setName('third').setDescription('Third Place (P3)').setRequired(false))
         )
+
         .addSubcommand(sub =>
             sub.setName('lap-gap')
                 .setDescription('Post lap positions and gaps as a text card in chat')
@@ -189,35 +203,29 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply({ ephemeral: true });
+        }
 
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'join') {
             const channel = interaction.member.voice?.channel;
-            if (!channel) {
-                return interaction.editReply({ content: '❌ Join a voice channel first!' });
-            }
+            if (!channel) return interaction.editReply({ content: '❌ Join a voice channel first!' });
 
-            try {
-                joinVoiceChannel({
-                    channelId: channel.id,
-                    guildId: interaction.guild.id,
-                    adapterCreator: interaction.guild.voiceAdapterCreator,
-                    selfDeaf: false,
-                });
-                return interaction.editReply({ content: `🎙️ Commentator connected to **${channel.name}**!` });
-            } catch (err) {
-                console.error('❌ Voice Join Error:', err);
-                return interaction.editReply({ content: '❌ Failed to join voice channel due to a connection error.' });
-            }
+            joinVoiceChannel({
+                channelId: channel.id,
+                guildId: interaction.guild.id,
+                adapterCreator: interaction.guild.voiceAdapterCreator,
+                selfDeaf: false,
+            });
+
+            return interaction.editReply({ content: `🎙️ Commentator connected to **${channel.name}**!` });
         }
 
         if (subcommand === 'leave') {
             const connection = getVoiceConnection(interaction.guild.id);
-            if (!connection) {
-                return interaction.editReply({ content: '❌ Commentator is not in a voice channel.' });
-            }
+            if (!connection) return interaction.editReply({ content: '❌ Commentator is not in a voice channel.' });
 
             audioQueue = [];
             isPlaying = false;
