@@ -1,3 +1,15 @@
+const http = require('http');
+
+// 1. HTTP Web Server for Render Free Tier Port Binding
+const PORT = process.env.PORT || 10000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is active and running!\n');
+}).listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Health check web server running on port ${PORT}`);
+});
+
+// 2. Load Discord & Application Modules
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -27,7 +39,7 @@ for (const file of commandFiles) {
         commandArray.push(command.data.toJSON());
         console.log(`📦 Loaded command: /${command.data.name}`);
     } else {
-        console.log(`⚠️ The command at ${filePath} is missing a required "data" or "execute" property.`);
+        console.log(`⚠️ Missing "data" or "execute" property in ${filePath}`);
     }
 }
 
@@ -37,21 +49,20 @@ client.once('ready', async () => {
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
     try {
-        console.log('🔄 Started refreshing application (/) commands.');
-
+        console.log('🔄 Refreshing slash commands...');
         if (process.env.CLIENT_ID) {
             if (process.env.GUILD_ID) {
                 await rest.put(
                     Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
                     { body: commandArray },
                 );
-                console.log('✨ Successfully reloaded guild-specific application commands.');
+                console.log('✨ Guild slash commands updated successfully.');
             } else {
                 await rest.put(
                     Routes.applicationCommands(process.env.CLIENT_ID),
                     { body: commandArray },
                 );
-                console.log('✨ Successfully reloaded global application commands.');
+                console.log('✨ Global slash commands updated successfully.');
             }
         }
     } catch (error) {
@@ -69,10 +80,13 @@ client.on('interactionCreate', async interaction => {
         await command.execute(interaction);
     } catch (error) {
         console.error('❌ Command Execution Error:', error);
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+        
+        const errorMessage = { content: '❌ There was an error while executing this command!', ephemeral: true };
+        
+        if (interaction.deferred || interaction.replied) {
+            await interaction.followUp(errorMessage).catch(() => {});
         } else {
-            await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            await interaction.reply(errorMessage).catch(() => {});
         }
     }
 });
