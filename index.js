@@ -1,17 +1,3 @@
-const http = require('http');
-
-// 1. Instantly bind to Render's required port to satisfy the port scanner
-const PORT = process.env.PORT || 10000;
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is active and running!\n');
-});
-
-server.listen(PORT, () => {
-    console.log(`🌐 Health check server successfully listening on port ${PORT}`);
-});
-
-// 2. Load Discord and bot modules
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -77,22 +63,16 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
-    if (!command) {
-        console.error(`❌ No command matching ${interaction.commandName} was found.`);
-        return;
-    }
+    if (!command) return;
 
     try {
         await command.execute(interaction);
     } catch (error) {
-        console.error(`❌ Error executing ${interaction.commandName}:`, error);
-        
-        const errorMessage = { content: '❌ There was an error while executing this command!', ephemeral: true };
-        
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(errorMessage).catch(() => {});
+        console.error('❌ Command Execution Error:', error);
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
         } else {
-            await interaction.reply(errorMessage).catch(() => {});
+            await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
         }
     }
 });
