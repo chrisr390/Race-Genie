@@ -10,8 +10,8 @@ process.env.FFMPEG_PATH = ffmpeg;
 // ==========================================
 // 🎙️ ELEVENLABS VOICE CONFIGURATION
 // ==========================================
-// Rachel (Default Free Tier Voice)
-const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; 
+// Lucy (Fresh & Casual)
+const ELEVENLABS_VOICE_ID = 'lcMyyd2HUfFzxdCaC4Ta';
 
 let audioQueue = [];
 let isPlaying = false;
