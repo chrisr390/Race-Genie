@@ -134,7 +134,7 @@ async function queueSpeech(text, interaction) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('commentator')
-        .setDescription('Race Genie Live Voice Commentator')
+        .setDescription('Future Champions Live Voice Announcer v2') // Updated description forces cache refresh
 
         // --- CONNECT / DISCONNECT ---
         .addSubcommand(sub => sub.setName('join').setDescription('Connect commentator to your voice channel'))
@@ -224,9 +224,6 @@ module.exports = {
             return interaction.reply({ content: '👋 Commentator disconnected.', ephemeral: true });
         }
 
-        // ==========================================
-        // 🎙️ 1. WELCOME SCRIPT (RACE VS QUALI)
-        // ==========================================
         if (subcommand === 'welcome') {
             const session = interaction.options.getString('session') || 'race';
             const laps = interaction.options.getString('laps');
@@ -252,9 +249,6 @@ module.exports = {
             return queueSpeech(speech, interaction);
         }
 
-        // ==========================================
-        // 🎙️ 2. GAPS SCRIPT
-        // ==========================================
         if (subcommand === 'gaps') {
             const leader = interaction.options.getString('leader');
             const second = interaction.options.getString('second');
@@ -279,9 +273,6 @@ module.exports = {
             return queueSpeech(speech, interaction);
         }
 
-        // ==========================================
-        // 🎙️ 3. PENALTY SCRIPT
-        // ==========================================
         if (subcommand === 'penalty') {
             const driver = interaction.options.getString('driver');
             const location = interaction.options.getString('location') || 'turn 7';
@@ -297,9 +288,6 @@ module.exports = {
             return queueSpeech(speech, interaction);
         }
 
-        // ==========================================
-        // 🎙️ 4. FINISH & PODIUM SCRIPT
-        // ==========================================
         if (subcommand === 'finish') {
             const winner = interaction.options.getString('winner');
             const second = interaction.options.getString('second');
@@ -324,9 +312,6 @@ module.exports = {
             return queueSpeech(speech, interaction);
         }
 
-        // ==========================================
-        // 📄 5. CHAT LAP GAP CARD
-        // ==========================================
         if (subcommand === 'lap-gap') {
             const lap = interaction.options.getInteger('lap');
             const leader = interaction.options.getString('leader');
