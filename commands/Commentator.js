@@ -76,8 +76,12 @@ async function playNextInQueue(connection) {
             const buffer = Buffer.from(arrayBuffer);
             const stream = Readable.from(buffer);
 
-            // StreamType.Arbitrary forces FFmpeg to decode MP3 directly into Discord PCM audio
-            resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
+            // Force StreamType.Arbitrary with explicit FFmpeg decoding parameters for cloud stability
+            resource = createAudioResource(stream, { 
+                inputType: StreamType.Arbitrary,
+                inlineVolume: true 
+            });
+            resource.volume.setVolume(1.5); // Boost volume slightly to ensure clear playback
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
             const url = googleTTS.getAudioUrl(textToSpeak, {
@@ -181,7 +185,16 @@ module.exports = {
                 .addStringOption(opt => opt.setName('reason').setDescription('Reason').setRequired(false))
         )
 
-        // --- 4. FINISH & PODIUM ---
+        // --- 4. INCIDENT / COLLISION ---
+        .addSubcommand(sub =>
+            sub.setName('incident')
+                .setDescription('Broadcast an on-track crash, contact, or incident')
+                .addStringOption(opt => opt.setName('driver1').setDescription('Primary Driver Involved').setRequired(true))
+                .addStringOption(opt => opt.setName('driver2').setDescription('Second Driver Involved (if applicable)').setRequired(false))
+                .addStringOption(opt => opt.setName('location').setDescription('Turn / Corner').setRequired(false))
+        )
+
+        // --- 5. FINISH & PODIUM ---
         .addSubcommand(sub =>
             sub.setName('finish')
                 .setDescription('Broadcast checkered flag and podium in voice')
@@ -190,7 +203,7 @@ module.exports = {
                 .addStringOption(opt => opt.setName('third').setDescription('Third Place (P3)').setRequired(false))
         )
 
-        // --- 5. CHAT LAP GAP CARD ---
+        // --- 6. CHAT LAP GAP CARD ---
         .addSubcommand(sub =>
             sub.setName('lap-gap')
                 .setDescription('Post lap positions and gaps as a text card in chat')
@@ -203,7 +216,6 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // Defer reply immediately to prevent Discord 3-second timeout
         await interaction.deferReply({ ephemeral: true });
 
         const subcommand = interaction.options.getSubcommand();
@@ -287,7 +299,6 @@ module.exports = {
             const reason = interaction.options.getString('reason') || 'taking too many liberties';
 
             const penaltyPhrases = [
-                // --- Classic Cheeky ---
                 `Oh dear! ${driver} has picked up a penalty on ${location} for ${reason}. What a silly boy!`,
                 `Penalty for ${driver}! Caught out on ${location} for ${reason}. That is going to cost them!`,
                 `Oh, look at that! ${driver} gets a penalty on ${location} for ${reason}. Absolute schoolboy error!`,
@@ -298,14 +309,10 @@ module.exports = {
                 `Naughty, naughty! ${driver} gets done at ${location} for ${reason}. What on earth were they thinking?`,
                 `Well, ${driver} tried their luck at ${location} for ${reason} and the stewards said absolutely not!`,
                 `That is a classic lapse in judgment from ${driver}! Penalty copped at ${location} for ${reason}.`,
-
-                // --- Race Director & Track Action ---
                 `Disaster for ${driver}! Caught red-handed at ${location} for ${reason}. Stick to the track, mate!`,
                 `The race directors are not in a forgiving mood tonight. ${driver} pinged at ${location} for ${reason}!`,
                 `Did ${driver} think the stewards were having a tea break? Penalty given at ${location} for ${reason}!`,
                 `Bit of bumper cars from ${driver} at ${location} for ${reason}! That is a slap on the wrist from the stewards.`,
-
-                // --- Tongue in Cheek & Sarcastic ---
                 `Great news for ${driver}! The stewards have awarded them a shiny new penalty at ${location} for ${reason}!`,
                 `I see ${driver} is applying for a job as a lawnmower at ${location}. Penalty given for ${reason}!`,
                 `Tremendous track limits interpretation from ${driver} at ${location}! Unfortunately, the stewards didn't share the vision. Penalty!`,
@@ -320,10 +327,32 @@ module.exports = {
                 `A moment of pure, unadulterated madness from ${driver} at ${location}. Penalty for ${reason}!`,
                 `Someone tell ${driver} that track limits aren't just polite suggestions! Penalty handed out at ${location} for ${reason}.`,
                 `I hope ${driver} brought their wallet, because the stewards are charging them for ${reason} at ${location}!`,
-                `Unbelievable scenes! ${driver} picks up time for ${reason} at ${location}. Absolutely shambolic!`
+                `Unbelievable scenes! ${driver} picks up time for ${reason} at ${location}. Absolutely shambolic!`,
+                `A move straight out of the legoland driving handbook from ${driver} at ${location}! Penalty given for ${reason}!`
             ];
 
             return queueSpeech(pickRandom(penaltyPhrases), interaction);
+        }
+
+        if (subcommand === 'incident') {
+            const driver1 = interaction.options.getString('driver1');
+            const driver2 = interaction.options.getString('driver2');
+            const location = interaction.options.getString('location') || 'turn 7';
+
+            const incidentPhrases = [
+                `That wasn't a racing incident, that was a move straight out of the legoland driving handbook at ${location}!`,
+                `I didn't realise bumper cars were on the schedule today! Absolute chaos at ${location}!`,
+                `Absolute scenes! ${driver1} has just turned ${driver2 || 'their rival'} into a passenger. Pure comedy!`,
+                `Did someone grease the track? Because ${driver1} went sliding straight off the tarmac!`,
+                `A magnificent display of synchronized spinning! Ten out of ten for artistic impression, zero out of ten for spatial awareness.`,
+                `Well, ${driver1} found a gap that didn't exist. A move straight out of the legoland driving handbook!`,
+                `Tears before bedtime at ${location}! Absolute chaos on track!`,
+                `And they've parked it in the scenery! Did somebody forget to tell them where the steering wheel goes?`,
+                `That's not hard racing, that's an insurance claim waiting to happen!`,
+                `Oh, lovely! A bit of panel damage and a proper moment to forget at ${location}!`
+            ];
+
+            return queueSpeech(pickRandom(incidentPhrases), interaction);
         }
 
         if (subcommand === 'finish') {
