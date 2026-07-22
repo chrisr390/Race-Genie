@@ -1,7 +1,18 @@
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const { generateDependencyReport } = require('@discordjs/voice'); // 👈 ADD THIS IMPORT
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+
+// ... rest of your index.js ...
+
+client.once('ready', async () => {
+    console.log(`🤖 Logged in as ${client.user.tag}!`);
+    console.log('🎙️ VOICE DEPENDENCY REPORT:\n' + generateDependencyReport()); // 👈 PRINTS AUDIO HEALTH
+    client.user.setActivity('GT7 | Future Champions', { type: 0 });
+    await registerCommands();
+});
+
 
 // ==========================================
 // 1. KEEP-ALIVE SERVER (FOR RENDER & CRON)
