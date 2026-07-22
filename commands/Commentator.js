@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection, entersState } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
 const googleTTS = require('google-tts-api');
 const { Readable } = require('stream');
 
@@ -68,8 +68,11 @@ async function playNextInQueue(connection) {
             }
 
             const arrayBuffer = await response.arrayBuffer();
-            const stream = Readable.from(Buffer.from(arrayBuffer));
-            resource = createAudioResource(stream);
+            const buffer = Buffer.from(arrayBuffer);
+            const stream = Readable.from(buffer);
+
+            // StreamType.Arbitrary forces FFmpeg/Prism to decode MP3 into raw Discord PCM
+            resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
         } else {
             console.log(`🎙️ Generating Google TTS fallback for: "${textToSpeak}"`);
             const url = googleTTS.getAudioUrl(textToSpeak, {
@@ -78,7 +81,7 @@ async function playNextInQueue(connection) {
                 host: 'https://translate.google.com',
                 timeout: 10000,
             });
-            resource = createAudioResource(url);
+            resource = createAudioResource(url, { inputType: StreamType.Arbitrary });
         }
 
         connection.subscribe(player);
@@ -91,7 +94,7 @@ async function playNextInQueue(connection) {
         
         try {
             const fallbackUrl = googleTTS.getAudioUrl(textToSpeak, { lang: 'en-GB', slow: false });
-            const resource = createAudioResource(fallbackUrl);
+            const resource = createAudioResource(fallbackUrl, { inputType: StreamType.Arbitrary });
             connection.subscribe(player);
             player.play(resource);
         } catch (fallbackErr) {
@@ -195,7 +198,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // Defer reply immediately so Discord never times out
+        // Defer reply immediately so Discord interaction never times out
         await interaction.deferReply({ ephemeral: true });
 
         const subcommand = interaction.options.getSubcommand();
