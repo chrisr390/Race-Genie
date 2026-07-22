@@ -10,12 +10,14 @@ function loadTTData() {
         const dir = path.dirname(DATA_PATH);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         if (!fs.existsSync(DATA_PATH)) {
-            fs.writeFileSync(DATA_PATH, JSON.stringify({ event: null, submissions: {}, isClosed: false }, null, 2));
+            fs.writeFileSync(DATA_PATH, JSON.stringify({ event: null, submissions: {}, isClosed: false, feedChannelId: null }, null, 2));
         }
-        return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+        const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+        if (!data.feedChannelId) data.feedChannelId = null;
+        return data;
     } catch (err) {
         console.error('Error loading Time Trial data:', err);
-        return { event: null, submissions: {}, isClosed: false };
+        return { event: null, submissions: {}, isClosed: false, feedChannelId: null };
     }
 }
 
@@ -75,6 +77,13 @@ module.exports = {
                 .addStringOption(opt => opt.setName('basetime').setDescription('Target or World Record Time (Format: M:SS.MMM e.g., 1:30.000)').setRequired(true))
         )
 
+        // --- SUBCOMMAND: SET FEED CHANNEL ---
+        .addSubcommand(sub =>
+            sub.setName('set-feed')
+                .setDescription('Set the channel where live time trial submissions will be broadcasted')
+                .addChannelOption(opt => opt.setName('channel').setDescription('Select feed channel').setRequired(true))
+        )
+
         // --- SUBCOMMAND: CLOSE TIME TRIAL ---
         .addSubcommand(sub =>
             sub.setName('close')
@@ -92,7 +101,25 @@ module.exports = {
         const ttData = loadTTData();
 
         // ==========================================
-        // 1. START NEW EVENT
+        // 1. SET FEED CHANNEL
+        // ==========================================
+        if (subcommand === 'set-feed') {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
+                return interaction.reply({ content: '❌ You need Manage Events permissions to set the feed channel.', ephemeral: true });
+            }
+
+            const feedChannel = interaction.options.getChannel('channel');
+            ttData.feedChannelId = feedChannel.id;
+            saveTTData(ttData);
+
+            return interaction.reply({
+                content: `✅ Live submission feed set to ${feedChannel}! All new lap submissions will be broadcasted there.`,
+                ephemeral: true
+            });
+        }
+
+        // ==========================================
+        // 2. START NEW EVENT
         // ==========================================
         if (subcommand === 'start') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
@@ -124,7 +151,7 @@ module.exports = {
         }
 
         // ==========================================
-        // 2. SUBMIT LAP TIME
+        // 3. SUBMIT LAP TIME
         // ==========================================
         if (subcommand === 'submit') {
             if (!ttData.event) {
@@ -187,16 +214,42 @@ module.exports = {
                 confirmEmbed.setImage(attachment.url);
             }
 
-            return interaction.reply({
+            // Reply directly to the driver where they ran the command
+            await interaction.reply({
                 content: isImprovement 
                     ? `🔥 **Personal Best updated!** Previous: \`${existingEntry.time}\` ➔ New: \`${timeStr}\``
                     : `✅ Time submitted successfully!`,
                 embeds: [confirmEmbed]
             });
+
+            // Post to the Live Submission Feed Channel if configured
+            if (ttData.feedChannelId) {
+                try {
+                    const feedChannel = await interaction.client.channels.fetch(ttData.feedChannelId);
+                    if (feedChannel) {
+                        const feedEmbed = new EmbedBuilder()
+                            .setTitle(`⏱️ NEW SUBMISSION — ${ttData.event.track}`)
+                            .setDescription(`**Driver:** ${interaction.user} (\`${psn}\`)\n**Lap Time:** \`${timeStr}\`${isImprovement ? ` *(Improved from \`${existingEntry.time}\`)*` : ''}`)
+                            .setColor('#3498DB')
+                            .setFooter({ text: 'Future Champions Social Club • Live Feed' })
+                            .setTimestamp();
+
+                        if (attachment) {
+                            feedEmbed.setImage(attachment.url);
+                        }
+
+                        await feedChannel.send({ embeds: [feedEmbed] });
+                    }
+                } catch (err) {
+                    console.error('Error sending submission to feed channel:', err);
+                }
+            }
+
+            return;
         }
 
         // ==========================================
-        // 3. GENERATE LEADERBOARD
+        // 4. GENERATE LEADERBOARD
         // ==========================================
         if (subcommand === 'leaderboard') {
             if (!ttData.event) {
@@ -238,7 +291,7 @@ module.exports = {
         }
 
         // ==========================================
-        // 4. GENERATE PACE CHART
+        // 5. GENERATE PACE CHART
         // ==========================================
         if (subcommand === 'pace') {
             const timeStr = interaction.options.getString('basetime').trim();
@@ -257,11 +310,10 @@ module.exports = {
             const millis = parseInt(match[3], 10);
             const baseMs = (minutes * 60 * 1000) + (seconds * 1000) + millis;
 
-            // Target Percentages
-            const p101 = formatMsToTime(baseMs * 1.01); // Gold (+1%)
-            const p102 = formatMsToTime(baseMs * 1.02); // Silver (+2%)
-            const p103 = formatMsToTime(baseMs * 1.03); // Bronze (+3%)
-            const p105 = formatMsToTime(baseMs * 1.05); // Target (+5%)
+            const p101 = formatMsToTime(baseMs * 1.01);
+            const p102 = formatMsToTime(baseMs * 1.02);
+            const p103 = formatMsToTime(baseMs * 1.03);
+            const p105 = formatMsToTime(baseMs * 1.05);
 
             const trackInfo = ttData.event ? ` — ${ttData.event.track}` : '';
 
@@ -282,7 +334,7 @@ module.exports = {
         }
 
         // ==========================================
-        // 5. CLOSE TIME TRIAL
+        // 6. CLOSE TIME TRIAL
         // ==========================================
         if (subcommand === 'close') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
@@ -307,7 +359,7 @@ module.exports = {
         }
 
         // ==========================================
-        // 6. CLEAR LEADERBOARD
+        // 7. CLEAR LEADERBOARD
         // ==========================================
         if (subcommand === 'clear') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageEvents)) {
